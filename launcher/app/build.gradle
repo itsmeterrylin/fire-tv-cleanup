@@ -13,7 +13,8 @@ android {
 
     defaultConfig {
         resValue 'string', 'user_name', localProps.getProperty('tvhome.userName', '')
-        applicationId 'com.gathin.tvhome'
+        // Override with -PlauncherApplicationId=... to install under a different id.
+        applicationId project.findProperty('launcherApplicationId') ?: 'com.gathin.tvhome'
         minSdk 26
         targetSdk 29
         versionCode 2
@@ -30,9 +31,15 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    lint {
+        // Sideloaded over adb, never published: the Play Store target-SDK floor does not apply.
+        disable 'ExpiredTargetSdkVersion'
+    }
 }
 
 dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
+    testImplementation 'junit:junit:4.13.2'
 }
