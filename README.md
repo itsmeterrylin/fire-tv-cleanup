@@ -127,6 +127,35 @@ How it differs from Android TV:
 - **AirPlay has no screen of its own.** The AirPlay tile opens nothing, and casting from an iPhone
   works anyway.
 
+### Fire OS 7 (Android 9) and Windows
+
+Tested on an Amazon Fire TV AFTALMO (codename almond, Fire OS 7.7.1.5). Fire OS 7 blocks background
+apps from opening a screen for about 5 s after Home is pressed, and never passes the Home key to
+accessibility services, so the redirect needs more than the Fire OS 8 approach above. The pieces
+below are provided separately; this section describes how they fit together.
+
+- **Fast Home** (requires PR: Fire OS 7 fast Home). The launcher installs as **My Home**
+  (`com.gathin.tvhome`; change the id with `-PlauncherApplicationId=`). When Amazon's home appears,
+  the redirect clicks the My Home tile in Amazon's apps row: Amazon opens it, which is not blocked,
+  in about 0.6 s. Pin the tile once with Apps, highlight My Home, Menu, Move to front. Without the
+  tile the redirect covers Amazon's screen in black and opens My Home after the 5 s.
+- **Boot guard** (same PR). For 3 minutes after boot, until the first remote press, an app that
+  opens itself is sent back to My Home. It can still flash for a moment.
+- **Loop guard** (same PR). After 3 redirects in 10 s the redirect pauses for a minute.
+- **Windows scripts** (requires PR: Windows scripts). Set `TV_HOST` to the TV's `ip:port`
+  (or pass `-Tv`) and run:
+  - `launcher\build-and-install.ps1`: builds through Git Bash, installs, turns on the redirect,
+    verifies it and rolls back on failure. `-DryRun` prints the commands.
+  - `tools\fire-check.ps1 -ListFile <list>`: lists packages an Amazon update turned back on
+    (`-Fix` turns them off again) and checks the redirect is still running.
+  - `tools\debloat-loop.ps1 -ListFile <list>`: disables one package at a time with a health check
+    and rollback, and appends restore lines to `backup\restore.ps1`.
+  - `tools\fire-home-off.ps1`: turns the redirect off (`-Uninstall` also removes the app).
+  - `tools\keepalive.ps1`: keeps ADB reachable while you work.
+- **Debloat list:** [`examples/amazon-fire-tv-aftalmo/debloat.txt`](examples/amazon-fire-tv-aftalmo/debloat.txt)
+  is an aggressive list for this model. Fire OS turns Alexa (`com.amazon.vizzini`) back on at every
+  boot, so it is not listed.
+
 ## Supported TVs
 
 Android TV and Google TV: Xiaomi/Redmi, TCL, Hisense, Sony, OnePlus, Realme, Nvidia Shield and most

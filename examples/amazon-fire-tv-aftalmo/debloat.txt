@@ -1,0 +1,163 @@
+# Amazon Fire TV (AFTALMO, Amlogic/droidlogic), Fire OS 7 / Android 9 (tested on 7.7.1.5). An aggressive list for a TV used
+# with a few sideloaded or store apps and the My Home launcher. Disabled for user 0, never uninstalled.
+# Comment out anything you use. The OPTIONAL group near the end is partly enabled; review it first.
+# Never listed (the Windows scripts also refuse them): com.amazon.tv.launcher, firehomestarter, settings.v2, quicksettings, livetv, ime,
+# input/HDMI/CEC (droidlogic*, inputpreference, devicecontrol), Bluetooth/remote pairing, Wi-Fi, account/auth, OTA, Appstore, android core.
+# Fire OS refuses these as protected packages, so they are not listed: com.amazon.ftvads.deeplinking, com.amazon.client.metrics,
+# com.amazon.device.metrics, com.amazon.device.crashmanager.
+# Apply (Windows scripts, one at a time, health-checked, rolls back on trouble; set TV_HOST=<ip>:5555 first):
+#   powershell -File tools\debloat-loop.ps1 -ListFile examples\amazon-fire-tv-aftalmo\debloat.txt
+# Re-check after Amazon updates (re-disables drift):
+#   powershell -File tools\fire-check.ps1 -ListFile examples\amazon-fire-tv-aftalmo\debloat.txt -Fix
+# Or with the shell scripts:  TV_HOST=<ip> tools/disable.sh examples/amazon-fire-tv-aftalmo/debloat.txt
+# Undo everything:  TV_HOST=<ip> tools/restore.sh examples/amazon-fire-tv-aftalmo/debloat.txt
+# Ads, shopping, promos
+com.amazon.kso.blackbird          # sponsored screensaver and lock-screen ads
+com.amazon.sneakpeek              # ad previews
+com.amazon.hybridadidservice      # advertising ID
+com.amazon.shoptv.client          # shopping upsell
+com.amazon.shoptv.firetv.client   # shopping upsell
+com.amazon.tv.democontent.provider  # retail demo content
+com.amazon.media.recommendations  # home-row recommendations
+com.amazon.bueller.photos         # Amazon Photos
+com.amazon.bueller.music          # Amazon Music
+com.amazon.minitv.android.app     # miniTV
+com.amazon.naatyam                # policy/promo service
+com.amazon.gamehub                # Fire TV games
+com.amazon.fireos.cirruscloud     # Luna / cloud gaming
+com.amazon.avod                   # Prime Video
+com.amazon.tv.localgallery        # local gallery
+com.amazon.ftv.screensaver        # Amazon screensaver
+com.amazon.tv.website_launcher    # website shortcut launcher
+com.amazon.cloud9                 # Silk browser backend
+# Telemetry, logging, remote config
+com.amazon.wirelessmetrics.service
+com.amazon.tv.fw.metrics
+com.amazon.client.metrics.api
+com.amazon.dp.logger
+com.amazon.logan
+com.amazon.perfc
+com.amazon.perfcollection
+com.amazon.livedeviceservice
+com.amazon.tv.acr                 # automatic content recognition (viewing data)
+com.amazon.providers.contentsupport
+com.amazon.device_remote_config_sync_service
+com.amazon.alta.h2clientservice
+com.amazon.neodelegate
+com.amazon.neopactservice
+com.amazon.privacypassservice
+com.amazon.audiolatencymeasurer
+com.amazon.recess
+com.amazon.aca
+com.amazon.csm.htmlruntime
+com.amazon.rtcsessioncontroller
+com.amazon.uxnotification
+com.amazon.systemnotices
+com.amazon.tv.notificationcenter
+com.amazon.sharingservice.android.client.proxy
+com.amazon.sync.provider.ipc
+# com.amazon.minerva.client.api     # PROTECTED: Fire OS refuses pm disable-user (2026-10-21).  Amazon metrics API
+com.amazon.ceviche                # metrics/remote-config pipeline
+com.amazon.tv.developer.dataservice  # ad personalisation data service
+# com.amazon.diode                  # PROTECTED: Fire OS refuses pm disable-user (2026-10-21).  diagnostics analyzers
+# com.fireos.usagestats.proxy       # PROTECTED: Fire OS refuses pm disable-user (2026-10-21).  usage stats listener
+# com.fireos.arcus.proxy            # PROTECTED: Fire OS refuses pm disable-user (2026-10-21).  remote config proxy
+# Alexa side services (the voice assistant itself is under OPTIONAL)
+com.amazon.alexa.datastore.app
+com.amazon.alexamediaplayer.runtime.ftv
+com.amazon.alexadirectivebrokerservice
+com.amazon.alexa.externalmediaplayer.fireos
+com.amazon.tv.alexaalerts
+com.amazon.tv.alexanotifications
+com.amazon.spotify.mediabrowserservice
+com.amazon.wha.mediabrowserservice
+com.amazon.audiohome
+com.ivona.orchestrator
+com.ivona.tts.oem
+# Casting, sharing, companion
+com.amazon.dialservice
+com.amazon.awvflingreceiver
+com.amazon.cast.sink
+com.apple.airplay.amazon.airplay
+com.amazon.whisperplay.contracts
+com.amazon.whisperplay.service.install
+com.amazon.communication.discovery
+com.amazon.tcomm.jackson
+com.amazon.storm.lightning.tutorial
+com.amazon.ods.kindleconnect
+com.amazon.wifilocker
+com.amazon.dpcclient
+# Setup, support, legal, tutorials
+com.amazon.tv.support
+# com.amazon.tv.csapp               # PROTECTED: Fire OS refuses pm disable-user (2026-10-21). Customer support app
+com.amazon.tv.legalresources
+com.amazon.tv.legal.notices
+com.amazon.tv.legal.notices.overlay.localisation.common
+com.amazon.tv.releasenotes
+com.amazon.tv.ooberesource
+com.amazon.tv.easyupgrade
+com.amazon.tv.forcedotaupdater.v2  # forced-update nag
+com.amazon.tv.ottssocompanionapp
+com.amazon.tmm.tutorial
+com.amazon.tahoe                  # FreeTime kids
+com.amazon.tv.mattercohost
+com.amazon.tv.matter
+com.amazon.tv.channelscan
+com.amazon.android.tv.scan
+com.amazon.tv.resolutioncycler    # resolution hotkey, not needed
+com.amazon.connectivitydiag       # Wi-Fi 711 diagnostics easter egg
+com.amazon.ftv.xpicker            # stub apk
+com.amazon.tv.ffsprovisioneeclient  # frustration-free setup client
+com.amazon.cardinal
+com.amazon.spiderpork
+com.amazon.dummy.settings
+com.amazon.dummy.contacts
+com.amazon.dummy.calendar
+com.amazon.dummy.gallery
+com.amazon.dummy.music
+com.amazon.dummy.alarmclock
+# Unused apps and Android extras
+# com.esaba.downloader              # Downloader sideloading app: uncomment only if you do not use it
+# com.watchit.vod                   # Watch It VOD app
+com.android.htmlviewer
+com.android.printspooler
+com.android.bips
+com.android.nfc
+com.android.traceur
+com.android.backupconfirm
+com.android.sharedstoragebackup
+com.android.wallpaperbackup
+com.android.wallpapercropper
+com.android.simappdialog
+com.android.onetimeinitializer
+com.android.bluetoothmidiservice
+com.android.managedprovisioning
+com.android.se
+com.svox.pico                     # PicoTTS, nothing needs it while Alexa is untouched
+# OPTIONAL: Alexa voice, consents and the unclear helpers are disabled here (uncommented). The rest stay on.
+# com.amazon.vizzini                # RE-ENABLED BY FIRE OS AT EVERY BOOT (2026-10-21), so not listed.  Alexa voice service: voice button and Alexa stop working if disabled
+com.amazon.vizzini.ftvcds         # Alexa content data service, goes with vizzini
+com.amazon.aria                   # Alexa visual responses (APL); voice answers lose their UI
+com.amazon.aiondec                # Alexa on-device (AIOnDeC); part of the voice stack
+com.amazon.tv.fss                 # Alexa connectivity/provider registration; voice stack
+com.amazon.tv.routing             # Alexa routing info; voice stack
+# com.amazon.firebat                # Prime Video backend, recents row, purchases; other apps should not need it, DRM playback unverified
+# com.amazon.tigris                 # Appstore localisation and OOBE content; unclear, may affect Appstore listings
+# com.amazon.adep                   # PROTECTED: Fire OS refuses pm disable-user (2026-10-21).  bootloader/package verification analyzers; unclear if tied to app installs
+com.amazon.ale                    # purpose unclear, system priv-app
+com.fireos.sdk.ftve.addp          # purpose unclear (boot receiver only)
+com.amazon.device.details         # device property updates; unclear
+# com.amazon.tifobserver            # TV input framework observer; pairs with Live TV
+# com.amazon.hedwig                 # TV input / recents provider; could affect input picker
+com.amazon.ftv.profilepicker      # Alexa profile picker; may be launched at boot or by profile switching
+# com.amazon.tv.parentalcontrols    # PROTECTED: Fire OS refuses pm disable-user (2026-10-21).  PIN for purchases and parental controls; Settings screens may error
+com.amazon.tv.consents            # privacy consent screens; may re-prompt or error
+# com.amazon.tv.oobe                # setup wizard; needed again after a factory reset
+# com.amazon.whisperjoin.middleware.np  # Wi-Fi provisioning from the Alexa app; touches network setup
+# com.amazon.whisperlink.core.android   # casting/whisperplay core; may be needed by the Fire TV remote app
+# com.amazon.storm.lightning.services   # Fire TV phone remote app service; remote app stops working
+# com.amazon.device.messaging       # Amazon push messaging (ADM); Appstore and OTA notices may rely on it
+# com.amazon.storage.manager        # automatic app offload on low storage
+# com.amazon.kindleautomatictimezone  # automatic time zone; wrong clock can break TLS and EPG
+# com.amazon.device.rdmapplication  # remote battery level reporting
+# com.amazon.securitysyncclient     # PROTECTED: Fire OS refuses pm disable-user (2026-10-21).  remote config sync for security updates
