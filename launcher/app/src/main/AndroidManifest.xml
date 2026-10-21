@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Lets the launcher turn its Home redirect on and off from the TV; granted over adb (pm grant). -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <!-- Fire TV: tells the Home redirect what is in front when the TV turns on; granted over adb (appops). -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
 
     <application
         android:label="@string/app_name"
@@ -31,6 +33,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- Full-screen HDMI / AV input, opened from the Inputs menu. -->
+        <activity
+            android:name=".InputPlayerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode"
+            android:screenOrientation="landscape" />
 
         <!-- Screensaver: the Manhattan photos with a slow zoom and a clock. Selected over adb, see the class. -->
         <service

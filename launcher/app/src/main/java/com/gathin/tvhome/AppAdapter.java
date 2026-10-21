@@ -10,13 +10,13 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
-import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -67,7 +67,9 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         /** Square dock art, or null: then the app's own icon sits on a graphite tile. */
         final Drawable square;
         final Drawable icon;
-        int ambient;
+        /** How the icon fills a dock tile (ICON_*), worked out on first use; edge is the colour behind ICON_FIT_EDGE. */
+        int iconFit;
+        int edge;
 
         Entry(String label, ComponentName component, Drawable square, Drawable icon) {
             this.label = label;
@@ -78,7 +80,10 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         }
     }
 
-    static final float FOCUS_SCALE = 1.10f;
+    // App tiles: a square opaque icon fills the tile; a wide opaque one sits whole on its own edge colour; one with
+    // transparent corners (SmartTube) is shown as drawn, with no tile behind it; one without a size gets graphite.
+    private static final int ICON_FILL = 1, ICON_FIT_EDGE = 2, ICON_FIT_GRAPHITE = 3, ICON_AS_IS = 4;
+
     static final float CORNER_RATIO = 0.225f;
 
     private final Context ctx;
@@ -97,14 +102,25 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         this.ctx = ctx;
         this.listener = listener;
         this.maxDock = maxDock;
-        String saved = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(PREF_DOCK, null);
-        pinned.addAll(saved != null
-                ? (saved.isEmpty() ? Collections.emptyList() : Arrays.asList(saved.split(",")))
-                : Arrays.asList(ctx.getResources().getStringArray(R.array.dock_apps)));
         this.hidden = new HashSet<>(Arrays.asList(ctx.getResources().getStringArray(R.array.hidden_apps)));
     }
 
+    /**
+     * Reads the dock order on every reload, not just at start, so a backup restored over adb (by rewriting the
+     * prefs file with run-as) takes effect when the launcher comes back. Force-stopping the app to make it re-read
+     * would also switch off its Home redirect (Android drops a force-stopped app's accessibility services).
+     */
+    @SuppressWarnings("deprecation")   // MODE_MULTI_PROCESS: re-reads the file when it changed on disk
+    private void loadPinned() {
+        String saved = ctx.getSharedPreferences(PREFS, Context.MODE_MULTI_PROCESS).getString(PREF_DOCK, null);
+        pinned.clear();
+        pinned.addAll(saved != null
+                ? (saved.isEmpty() ? Collections.emptyList() : Arrays.asList(saved.split(",")))
+                : Arrays.asList(ctx.getResources().getStringArray(R.array.dock_apps)));
+    }
+
     void reload() {
+        loadPinned();
         PackageManager pm = ctx.getPackageManager();
         Intent probe = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         List<ResolveInfo> found = pm.queryIntentActivities(probe, 0);
@@ -203,8 +219,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     public void onBindViewHolder(@NonNull Holder h, int position) {
         Entry e = items.get(position);
         h.name.setText(e.label);
-        boolean docked = isDocked(position);
-        h.name.setVisibility(docked ? View.INVISIBLE : View.VISIBLE);   // the dock uses the tooltip instead
+        h.name.setVisibility(View.INVISIBLE);   // every row uses the tooltip above the magnified icon instead
         h.name.setAlpha(0f);
         h.card.setScaleX(1f);
         h.card.setScaleY(1f);
@@ -214,9 +229,20 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         h.shadow.setScaleY(1f);
         h.shadow.setTranslationY(0f);
         h.label.setVisibility(View.GONE);
-        boolean art = e.square != null;
-        h.card.setBackground(art ? null : ctx.getDrawable(R.drawable.dock_tile_bg));
-        h.banner.setImageDrawable(e.square);
+        // The app's own icon fills the rounded tile, like an icon on a phone, unless there is square art.
+        Drawable full = e.square != null ? e.square : e.icon;
+        boolean art = full != null;
+        int fit = e.square == null && art ? iconFit(e) : ICON_FILL;
+        int padDp = fit == ICON_FIT_EDGE ? 4 : fit == ICON_FIT_GRAPHITE ? 8 : 0;
+        int pad = (int) (ctx.getResources().getDisplayMetrics().density * padDp);
+        h.banner.setScaleType(fit == ICON_FILL ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
+        h.banner.setPadding(pad, pad, pad, pad);
+        if (!art || fit == ICON_FIT_GRAPHITE) h.card.setBackground(ctx.getDrawable(R.drawable.dock_tile_bg));
+        else if (fit == ICON_FIT_EDGE) h.card.setBackground(new ColorDrawable(e.edge));
+        else h.card.setBackground(null);
+        // A rounded clip would cut the corners off an icon that has its own shape.
+        h.card.setClipToOutline(fit != ICON_AS_IS);
+        h.banner.setImageDrawable(full);
         h.banner.setVisibility(art ? View.VISIBLE : View.GONE);
         h.icon.setImageDrawable(art ? null : e.icon);
         h.icon.setVisibility(art ? View.GONE : View.VISIBLE);
@@ -236,7 +262,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         try {
             ctx.startActivity(i);
         } catch (Exception ex) {
-            Toast.makeText(ctx, "Can't open " + e.label, Toast.LENGTH_SHORT).show();
+            Toast.makeText(ctx, ctx.getString(R.string.cant_open, e.label), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -249,55 +275,33 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         return position >= 0 && position < items.size() ? items.get(position).label : "";
     }
 
-    /** A vivid colour sampled from the app's banner (or icon), cached per entry. */
-    int ambientColorAt(int position) {
-        if (position < 0 || position >= items.size()) return 0xFF444444;
-        Entry e = items.get(position);
-        if (e.ambient == 0) e.ambient = vividColor(e.square != null ? e.square : e.icon);
-        return e.ambient;
-    }
-
-    private static int vividColor(Drawable live) {
-        if (live == null) return 0xFF444444;
-        // Draw a private copy: changing the bounds of the drawable an ImageView shows would blank the tile.
+    /** Classifies the icon once: square with opaque corners fills the tile, otherwise it is shown whole. */
+    private static int iconFit(Entry e) {
+        if (e.iconFit != 0) return e.iconFit;
+        Drawable live = e.icon;
+        int w = live == null ? 0 : live.getIntrinsicWidth(), h = live == null ? 0 : live.getIntrinsicHeight();
+        if (w <= 0 || h <= 0) return e.iconFit = ICON_FIT_GRAPHITE;
         Drawable d = live.getConstantState() != null ? live.getConstantState().newDrawable().mutate() : live;
         Rect saved = new Rect(d.getBounds());
-        int n = 12;
+        int n = 32;
         Bitmap bmp = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmp);
         d.setBounds(0, 0, n, n);
-        d.draw(c);
+        d.draw(new Canvas(bmp));
         d.setBounds(saved);
-        float[] hsv = new float[3];
-        int best = 0xFF444444;
-        float bestScore = -1f;
-        long r = 0, g = 0, b = 0;
-        for (int y = 0; y < n; y++) {
-            for (int x = 0; x < n; x++) {
-                int p = bmp.getPixel(x, y);
-                r += Color.red(p);
-                g += Color.green(p);
-                b += Color.blue(p);
-                Color.colorToHSV(p, hsv);
-                float score = hsv[1] * Math.min(1f, hsv[2] * 1.4f);   // saturated and not too dark
-                if (score > bestScore) {
-                    bestScore = score;
-                    best = p;
-                }
-            }
-        }
+        boolean square = Math.abs((float) w / h - 1f) < 0.06f;
+        boolean opaqueCorners = Color.alpha(bmp.getPixel(1, 1)) > 200 && Color.alpha(bmp.getPixel(n - 2, 1)) > 200
+                && Color.alpha(bmp.getPixel(1, n - 2)) > 200 && Color.alpha(bmp.getPixel(n - 2, n - 2)) > 200;
+        int edge = bmp.getPixel(1, n / 2);
         bmp.recycle();
-        if (bestScore < 0.25f) {   // nearly monochrome banner (e.g. white): use its average, lifted
-            int avg = Color.rgb((int) (r / (n * n)), (int) (g / (n * n)), (int) (b / (n * n)));
-            Color.colorToHSV(avg, hsv);
-            hsv[2] = Math.max(hsv[2], 0.55f);
-            return Color.HSVToColor(hsv);
+        if (!opaqueCorners) return e.iconFit = ICON_AS_IS;
+        if (square) return e.iconFit = ICON_FILL;
+        if (Color.alpha(edge) > 200) {
+            e.edge = edge | 0xFF000000;
+            return e.iconFit = ICON_FIT_EDGE;
         }
-        Color.colorToHSV(best, hsv);
-        hsv[1] = Math.min(1f, hsv[1] * 1.1f);
-        hsv[2] = Math.max(0.5f, hsv[2]);
-        return Color.HSVToColor(hsv);
+        return e.iconFit = ICON_FIT_GRAPHITE;
     }
+
 
     static final class Holder extends RecyclerView.ViewHolder {
         final View card;
@@ -340,18 +344,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
             });
 
             card.setOnFocusChangeListener((view, focused) -> {
-                // Dock icons are magnified as a group by MainActivity; grid tiles scale themselves.
-                boolean inDock = owner.isDocked(getBindingAdapterPosition());
-                float s = focused ? FOCUS_SCALE : 1.0f;
-                if (!inDock) {
-                    view.animate().scaleX(s).scaleY(s)
-                            .setDuration(focused ? 260 : 180)
-                            .setInterpolator(new OvershootInterpolator(focused ? 1.6f : 0f))
-                            .start();
-                }
-                name.animate().alpha(focused ? 1f : 0f)
-                        .translationY(focused ? density * 4f : -density * 6f)
-                        .setDuration(220).start();
+                // Icons are magnified by row in MainActivity, and named by its tooltip.
                 int pos = getBindingAdapterPosition();
                 if (focused && listener != null && pos != RecyclerView.NO_POSITION) {
                     listener.onTileFocused(pos, view);

@@ -18,13 +18,6 @@
         android:layout_height="match_parent"
         android:background="@drawable/bg_scrim" />
 
-    <!-- Ambient glow in the colour of the focused dock app. -->
-    <View
-        android:id="@+id/ambient"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:alpha="0" />
-
     <!-- Name tooltip above the focused dock icon, positioned in code. -->
     <TextView
         android:id="@+id/heroName"
@@ -39,7 +32,7 @@
         android:textColor="#F2FFFFFF"
         android:textSize="12sp"
         android:fontFamily="@font/open_sans"
-        android:fontVariationSettings="'wght' 500"
+        android:fontVariationSettings="'wght' 750"
         android:singleLine="true" />
 
     <LinearLayout
@@ -143,6 +136,14 @@
                 android:layout_marginBottom="6dp"
                 android:orientation="horizontal">
 
+                <!-- Amazon Appstore; hidden in code where there is none. -->
+                <TextView
+                    android:id="@+id/btnStore"
+                    style="@style/TopIconButton"
+                    android:contentDescription="@string/appstore"
+                    android:drawableStart="@drawable/ic_store"
+                    android:nextFocusDown="@+id/grid" />
+
                 <TextView
                     android:id="@+id/btnInputs"
                     style="@style/TopIconButton"
@@ -196,12 +197,4 @@
         android:layout_height="4dp"
         android:alpha="0"
         android:background="@drawable/dock_dot" />
-
-    <!-- The single floating glass highlight that springs between tiles. -->
-    <com.gathin.tvhome.GlassView
-        android:id="@+id/glass"
-        android:layout_width="10dp"
-        android:layout_height="10dp"
-        android:alpha="0"
-        android:importantForAccessibility="no" />
 </FrameLayout>
