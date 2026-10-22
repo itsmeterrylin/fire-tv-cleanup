@@ -1,0 +1,19 @@
+# Amazon Fire TV Stick 4K (2nd gen), model AFTKM (karat), Fire OS 8 / Android 11, build RS8185.3891N
+# Ads and telemetry only. Packages are disabled for user 0, never uninstalled. Undo with tools/restore.sh.
+# Amazon's launcher (com.amazon.tv.launcher) stays enabled: Fire OS needs it, and the launcher's
+# HomeRedirectService keeps it out of sight.
+# Fire OS refuses these as protected packages (SecurityException), so they are not listed:
+#   com.amazon.ftvads.deeplinking, com.amazon.client.metrics.api, com.amazon.device.metrics,
+#   com.amazon.device.crashmanager
+# Undo everything:
+#   TV_HOST=<ip> tools/restore.sh examples/amazon-fire-tv-stick-4k-2ndgen-AFTKM/debloat.txt com.amazon.tv.launcher
+#   TV_HOST=<ip> tools/venv/bin/python -I tools/tv.py 'settings delete secure enabled_accessibility_services'
+# Ads
+com.amazon.hybridadidservice      # advertising ID used for ad targeting
+com.amazon.kso.blackbird          # sponsored screensaver and lock-screen ads
+com.amazon.shoptv.client          # shopping upsell
+com.amazon.shoptv.firetv.client   # shopping upsell (Fire TV client)
+com.amazon.minitv.android.app     # miniTV, ad-supported free video
+# Telemetry
+com.amazon.device.telemetry.emitter
+com.amazon.wirelessmetrics.service
