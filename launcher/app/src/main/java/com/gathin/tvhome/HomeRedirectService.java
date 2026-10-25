@@ -1,9 +1,13 @@
 package com.gathin.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
+import android.app.usage.UsageEvents;
+import android.app.usage.UsageStatsManager;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -17,7 +21,8 @@ import android.view.accessibility.AccessibilityEvent;
  * Fire OS never passes the Home key to accessibility services, so this watches windows instead: when Amazon's
  * home screen comes up, this launcher opens over it straight away. One exception: Amazon's home screen also
  * flashes up on the way into Settings, right after a window from Amazon's settings app, so a home screen that
- * follows a settings window within SETTINGS_GRACE_MS is left alone. Also opens the launcher once at boot.
+ * follows a settings window within SETTINGS_GRACE_MS is left alone. Also opens the launcher once at boot, and
+ * when the TV is turned on over Amazon's home screen (see screenOn).
  *
  * Turned on and off from the launcher (Menu on the Settings button) when the app holds WRITE_SECURE_SETTINGS
  * (granted over adb: pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS), or over adb:
@@ -37,9 +42,62 @@ public class HomeRedirectService extends AccessibilityService {
     private final Runnable redirect = this::openLauncher;
     private long settingsSeenAt = -SETTINGS_GRACE_MS;
 
+    // Turning the TV off brings Amazon's home screen to the front while the screen is dark, and no window event
+    // reaches this service then, so on turning it back on Amazon's home would stay. The usage stats (granted
+    // over adb: appops set com.gathin.tvhome GET_USAGE_STATS allow) say what is in front; if it is Amazon's
+    // home, the launcher opens. Anything else (an HDMI input, an app) is left alone. Checked a few seconds after
+    // the screen goes off, so the launcher is already in front when the TV comes back on, and again on screen on
+    // in case that missed (SCREEN_ON reaches this app up to ~2.5 s late, after Fire OS's own receivers).
+    private static final long SCREEN_OFF_CHECK_MS = 4000;
+    private final Runnable homeCheck = () -> {
+        if (amazonHomeInFront()) {
+            Log.i(TAG, "home screen in front with the screen on/off: opening launcher");
+            openLauncher();
+        }
+    };
+    private final BroadcastReceiver screenOn = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            handler.removeCallbacks(homeCheck);
+            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) handler.postDelayed(homeCheck, SCREEN_OFF_CHECK_MS);
+            else homeCheck.run();
+        }
+    };
+
     @Override
     protected void onServiceConnected() {
+        IntentFilter screen = new IntentFilter(Intent.ACTION_SCREEN_ON);
+        screen.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(screenOn, screen);
         if (SystemClock.elapsedRealtime() < BOOT_WINDOW_MS) openLauncher();
+    }
+
+    @Override
+    public void onDestroy() {
+        try {
+            unregisterReceiver(screenOn);
+        } catch (IllegalArgumentException ignored) {
+            // Never registered: the service was not connected.
+        }
+        super.onDestroy();
+    }
+
+    /** True when the last app to come to the front is Amazon's home screen; false without usage access. */
+    private boolean amazonHomeInFront() {
+        UsageStatsManager usm = getSystemService(UsageStatsManager.class);
+        if (usm == null) return false;
+        long now = System.currentTimeMillis();
+        UsageEvents events = usm.queryEvents(now - 60 * 60_000, now);
+        UsageEvents.Event e = new UsageEvents.Event();
+        String pkg = null, cls = null;
+        while (events.hasNextEvent()) {
+            events.getNextEvent(e);
+            if (e.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                pkg = e.getPackageName();
+                cls = e.getClassName();
+            }
+        }
+        return AMAZON_LAUNCHER.equals(pkg) && cls != null && cls.contains(AMAZON_HOME);
     }
 
     @Override

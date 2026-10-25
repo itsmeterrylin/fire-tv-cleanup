@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inicio</string>
+    <string name="inputs">Entradas</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="settings">Ajustes</string>
+    <string name="choose_input">Entradas</string>
+    <string name="connected">Conectado</string>
+    <string name="standby">En espera</string>
+    <string name="not_connected">Sin dispositivo</string>
+    <string name="live_tv">TV en directo</string>
+    <string name="no_inputs">No se encontraron entradas</string>
+    <string name="good_morning">Buenos días</string>
+    <string name="good_afternoon">Buenas tardes</string>
+    <string name="good_evening">Buenas tardes</string>
+    <string name="good_night">Buenas noches</string>
+    <string name="ethernet">Ethernet</string>
+    <string name="offline">Sin conexión</string>
+    <string name="no_internet">Sin internet</string>
+    <string name="home_redirect_label">Pantalla de inicio</string>
+    <string name="screensaver_label">Manhattan</string>
+    <string name="home_redirect_description">Abre este launcher al pulsar el botón Inicio.</string>
+    <string name="use_amazon_home">Usar la pantalla de inicio de Amazon</string>
+    <string name="use_this_home">Usar esta pantalla de inicio</string>
+    <string name="redirect_needs_permission">Necesita configurarse una vez desde un ordenador.</string>
+    <string name="pin_to_dock">Fijar en el dock</string>
+    <string name="unpin_from_dock">Quitar del dock</string>
+    <string name="move_left">Mover a la izquierda</string>
+    <string name="move_right">Mover a la derecha</string>
+    <string name="app_info">Info de la app</string>
+    <string name="dock_full">El dock está lleno. Quita una app primero.</string>
+    <string name="cant_open">No se puede abrir %1$s</string>
+    <string name="not_available">No disponible en esta tele</string>
+    <string name="no_signal">Sin señal en %1$s</string>
+</resources>

@@ -7,12 +7,14 @@ android {
     compileSdk 34
 
     // Optional name for the greeting ("Good evening, Alex"): tvhome.userName=Alex in launcher/local.properties.
+    // Or a fixed greeting that replaces the time-of-day one: tvhome.greeting=Welcome home!
     def localProps = new Properties()
     def localFile = rootProject.file('local.properties')
     if (localFile.exists()) localFile.withInputStream { localProps.load(it) }
 
     defaultConfig {
         resValue 'string', 'user_name', localProps.getProperty('tvhome.userName', '')
+        resValue 'string', 'greeting_text', localProps.getProperty('tvhome.greeting', '')
         applicationId 'com.gathin.tvhome'
         minSdk 26
         targetSdk 29
@@ -34,5 +36,4 @@ android {
 
 dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
-    implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
 }

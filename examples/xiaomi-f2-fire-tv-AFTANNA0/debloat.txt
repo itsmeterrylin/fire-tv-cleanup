@@ -1,0 +1,19 @@
+# Xiaomi TV F2 43" Fire TV Edition, sold as L43M7-FVEU, model AFTANNA0 (anna), Fire OS 7 / Android 9,
+# build PS7717.5741N
+# Ads and telemetry only. Packages are disabled for user 0, never uninstalled. Undo with tools/restore.sh.
+# Amazon's launcher (com.amazon.tv.launcher) stays enabled: Fire OS needs it.
+# Undo everything:
+#   TV_HOST=<ip> tools/restore.sh examples/xiaomi-f2-fire-tv-AFTANNA0/debloat.txt com.amazon.tv.launcher
+# Ads
+com.amazon.hybridadidservice      # advertising ID used for ad targeting
+com.amazon.kso.blackbird          # sponsored screensaver and lock-screen ads
+com.amazon.shoptv.client          # shopping upsell
+com.amazon.sneakpeek              # autoplaying previews on the home screen
+com.amazon.tv.democontent.provider # store demo content
+# Telemetry
+com.amazon.tv.acr                 # automatic content recognition: reports what is on screen
+com.miui.tv.analytics             # Xiaomi analytics
+com.amazon.wirelessmetrics.service
+com.amazon.tv.fw.metrics
+com.amazon.perfcollection
+com.amazon.dp.logger

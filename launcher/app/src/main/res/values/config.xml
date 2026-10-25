@@ -26,6 +26,22 @@
     <!-- The TV's Live TV / tuner app, offered at the end of the Inputs menu. Leave empty to omit. -->
     <string name="live_tv_package" translatable="false">com.amazon.tv.livetv</string>
 
+    <!-- Screensaver photos, shown in random order. Any number of drawables. -->
+    <array name="screensaver_photos">
+        <item>@drawable/saver_01</item>
+        <item>@drawable/saver_02</item>
+        <item>@drawable/saver_03</item>
+        <item>@drawable/saver_04</item>
+        <item>@drawable/saver_05</item>
+        <item>@drawable/saver_06</item>
+        <item>@drawable/saver_07</item>
+        <item>@drawable/saver_08</item>
+        <item>@drawable/saver_09</item>
+        <item>@drawable/saver_10</item>
+        <item>@drawable/saver_11</item>
+        <item>@drawable/saver_12</item>
+    </array>
+
     <!-- Tiles per row in the grid, and the most apps the dock can hold. -->
     <integer name="columns">4</integer>
 </resources>

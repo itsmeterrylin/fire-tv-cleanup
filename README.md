@@ -42,18 +42,23 @@ A small native Android TV home screen (`com.gathin.tvhome`), built for sets with
 
 - A full-screen photo that changes with the time of day: morning, afternoon, evening and night.
   The greeting changes with it ("Good evening, Alex").
-- A macOS-style dock of up to four apps with square icons. The focused icon grows and lifts, its
+- A macOS-style dock of up to `columns` apps (four by default). Each app's own icon fills its
+  rounded tile; icons with a shape of their own keep it. The focused icon grows and lifts, its
   neighbours grow a little, and a capsule label shows its name. Press Down for the rest of your
-  apps.
+  apps, which focus the same way, row by row.
 - Pin, unpin and reorder dock apps on the TV: hold OK or press Menu on an app.
-- Round buttons top right: **Inputs** (HDMI ports, AV and Live TV), **Wi-Fi** (signal bars, plus a
-  warning when there is no internet) and **Settings**. Greeting, clock and date top left, set in
-  [Open Sans](https://fonts.google.com/specimen/Open+Sans).
+- Round buttons top right: **Inputs** (HDMI ports and AV, played full screen inside the launcher,
+  plus Live TV where the TV lets other apps open it), **Wi-Fi** (signal bars, plus a warning when
+  there is no internet) and **Settings**; on Fire TV also the **Appstore**. Greeting, clock and date
+  top left, set in [Open Sans](https://fonts.google.com/specimen/Open+Sans).
 - A screensaver of the same photos with a slow zoom, a crossfade every 20 seconds and a clock.
+- English and Spanish, following the TV's language.
 
 Configure it in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml):
-the starting dock, hidden apps, Live TV package and columns. To put your name in the greeting, add
-`tvhome.userName=Alex` to `launcher/local.properties`. The YouTube, Netflix, Prime Video and AirPlay
+the starting dock, hidden apps, Live TV package, screensaver photos and columns. To put your name in
+the greeting, add `tvhome.userName=Alex` to `launcher/local.properties`, or replace the greeting
+altogether with `tvhome.greeting=Welcome home!`. Photos of your own can override the bundled ones
+without touching the repo: put them in `launcher/app/src/debug/res/` under the same names. The YouTube, Netflix, Prime Video and AirPlay
 dock icons are trademarked logos, so they are not in the repo. Draw them locally with
 [`tools/make_dock_icons.py`](tools/make_dock_icons.py). Apps without one show their own icon.
 Build and install with
@@ -64,6 +69,10 @@ TV_HOST=192.168.1.50 launcher/build-and-install.sh
 
 Needs JDK 17 and the Android SDK (platform 34, build-tools 34.0.0). On macOS:
 `brew install openjdk@17 android-commandlinetools && sdkmanager "platforms;android-34" "build-tools;34.0.0"`.
+On Windows, run the scripts from Git Bash with `MSYS_NO_PATHCONV=1` (so TV paths such as
+`/data/local/tmp` are not turned into Windows paths), `JAVA_HOME` pointing at a JDK 17
+(`winget install Microsoft.OpenJDK.17`), and the venv created with `python -m venv tools/venv`; the
+scripts find its `Scripts/python` on their own.
 
 ## Talking to the TV by hand
 
@@ -97,7 +106,7 @@ tools/restore.sh examples/xiaomi-mi-tv-4a/debloat.txt        # undo it, restore 
 ## Fire TV
 
 Fire OS is Android underneath, but it guards its home screen. Tested on a Hisense Fire TV Edition
-(Fire OS 8, Android 11, model AFTOLCBC82).
+(Fire OS 8, Android 11, model AFTOLCBC82) and a Xiaomi TV F2 (Fire OS 7, Android 9, model AFTANNA0).
 
 ![Amazon screensaver (top) and the launcher's screensaver (bottom)](docs/firetv-screensaver-before-after.jpg)
 
@@ -114,8 +123,19 @@ How it differs from Android TV:
 
 - **Amazon's launcher stays.** Fire OS ignores the default-home setting, and Amazon's launcher also
   hosts Settings. Disabling it locks you out of Settings. The launcher's `HomeRedirectService`
-  opens the launcher whenever Amazon's home screen comes up, so Amazon's screen shows for a moment
-  before yours.
+  opens the launcher whenever Amazon's home screen comes up. Pressing Home from an app, Amazon's
+  screen shows for 3–5 seconds first: Android holds back activity starts from non-system apps for
+  5 seconds after Home, and there is no way around it for a third-party app.
+- **Turning the TV on shows the launcher.** Fire OS brings Amazon's home to the front while the
+  screen is off, with no window event for the redirect, so the launcher checks what is in front
+  (usage stats, granted over adb by `build-and-install.sh`) shortly after the screen goes off and
+  again when it comes on.
+- **Inputs play inside the launcher.** Fire OS's own input player needs a permission only Amazon's
+  apps hold, and handing an HDMI input to its Live TV app opens the last channel instead (and, with
+  Vewd's Freeview app installed, asks which app to use first). Live TV's guide is guarded the same
+  way, so on Fire TV the Inputs menu has no Live TV entry.
+- **Appstore button.** Amazon's Appstore has no TV launcher entry, so it gets a button in the top
+  bar.
 - **Settings keeps working.** Amazon's home screen also flashes up on the way into Settings, right
   after a window from Amazon's settings app. The redirect leaves that flash alone.
 - **To turn the redirect off on the TV,** press Menu on the launcher's Settings button and choose
