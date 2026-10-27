@@ -5,12 +5,20 @@
     android:layout_height="match_parent"
     android:background="#FF000000">
 
-    <!-- Time-of-day photo, swapped in code. -->
+    <!-- Wallpaper: two layers so one photo can crossfade into the next, swapped in code. -->
     <ImageView
         android:id="@+id/bgPhoto"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
+        android:importantForAccessibility="no" />
+
+    <ImageView
+        android:id="@+id/bgPhotoTop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
         android:importantForAccessibility="no" />
 
     <View
@@ -24,6 +32,18 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:alpha="0" />
+
+    <!-- Your own photos under the clock (PhotoFrame). Fades out when the grid scrolls up over it. -->
+    <com.gathin.tvhome.PhotoFrame
+        android:id="@+id/photoFrame"
+        android:layout_width="300dp"
+        android:layout_height="190dp"
+        android:layout_marginStart="60dp"
+        android:layout_marginTop="128dp"
+        android:background="@drawable/photo_frame_bg"
+        android:foreground="@drawable/photo_frame_border"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
 
     <!-- Name tooltip above the focused dock icon, positioned in code. -->
     <TextView

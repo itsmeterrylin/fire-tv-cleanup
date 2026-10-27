@@ -60,6 +60,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
     static int COLUMNS = 4;
     private static final long MINUTE_MS = 60_000L;
+    private static final long WALLPAPER_MS = 5 * MINUTE_MS;
+    private static final long WALLPAPER_FADE_MS = 2_500;
     private String liveTvPkg;
 
     private AppAdapter adapter;
@@ -78,8 +80,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int ambientColor;
     private boolean heroShown;
     private TextView greeting;
-    private ImageView bgPhoto;
+    private ImageView bgPhoto, bgPhotoTop;
     private int bgRes;
+    private long bgChangedAt;
+    private final List<Integer> wallpapers = new ArrayList<>();
+    private int nextWallpaper;
+    private PhotoFrame photoFrame;
     private TextView btnWifi;
     private SpringAnimation springX, springY;
     private float glassTargetX, glassTargetY;
@@ -106,9 +112,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         @Override
         public void run() {
             updateGreeting();
-            updateBackground();
             updateWifiLabel();
             handler.postDelayed(this, MINUTE_MS);
+        }
+    };
+    private final Runnable wallpaperTick = new Runnable() {
+        @Override
+        public void run() {
+            if (wallpapers.get(nextWallpaper) == bgRes) nextWallpaper = (nextWallpaper + 1) % wallpapers.size();
+            showWallpaper(wallpapers.get(nextWallpaper));
+            nextWallpaper = (nextWallpaper + 1) % wallpapers.size();
+            handler.postDelayed(this, WALLPAPER_MS);
         }
     };
 
@@ -133,6 +147,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 ambientGlow.setGradientRadius((r - l) * 0.62f));
         greeting = findViewById(R.id.greeting);
         bgPhoto = findViewById(R.id.bgPhoto);
+        bgPhotoTop = findViewById(R.id.bgPhotoTop);
+        for (int p : PhotoDream.PHOTOS) wallpapers.add(p);
+        Collections.shuffle(wallpapers);
+        photoFrame = findViewById(R.id.photoFrame);
         btnWifi = findViewById(R.id.btnWifi);
 
         grid = findViewById(R.id.grid);
@@ -169,6 +187,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                // The photo frame sits where the grid scrolls up to: fade it out over the first 120dp.
+                photoFrame.setAlpha(Math.max(0f, 1f - rv.computeVerticalScrollOffset() / (120 * density)));
                 if (!glassShown) return;
                 glassTargetY -= dy;
                 if (springY.isRunning()) springY.animateToFinalPosition(glassTargetY);
@@ -231,7 +251,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         adapter.reload();
         grid.scheduleLayoutAnimation();
         updateGreeting();
-        updateBackground();
+        if (bgRes == 0) showWallpaper(BACKGROUNDS[dayPart()]);
+        // Back after a while (a film, say): the next photo is due now rather than a full interval later.
+        long due = WALLPAPER_MS - (System.currentTimeMillis() - bgChangedAt);
+        handler.postDelayed(wallpaperTick, Math.max(1_500, due));
+        photoFrame.start();
         updateWifiLabel();
         handler.postDelayed(minuteTick, MINUTE_MS);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
@@ -249,6 +273,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         handler.removeCallbacks(minuteTick);
+        handler.removeCallbacks(wallpaperTick);
+        photoFrame.stop();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         if (cm != null) cm.unregisterNetworkCallback(networkCallback);
     }
@@ -553,6 +579,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top bar ---------------------------------------------------------------------------------
 
     // Morning 5-12, afternoon 12-17, evening 17-22, night 22-5. Indexes GREETINGS and BACKGROUNDS.
+    // BACKGROUNDS is the first wallpaper; after that it cycles through the screensaver photos every WALLPAPER_MS.
     private static final int[] GREETINGS = {
             R.string.good_morning, R.string.good_afternoon, R.string.good_evening, R.string.good_night};
     private static final int[] BACKGROUNDS = {
@@ -573,8 +600,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         greeting.setText(name.isEmpty() ? text : text + ", " + name);
     }
 
-    private void updateBackground() {
-        int res = BACKGROUNDS[dayPart()];
+    /** Crossfades the wallpaper to res: bgPhotoTop fades in over bgPhoto, or out to reveal it. */
+    private void showWallpaper(int res) {
+        bgChangedAt = System.currentTimeMillis();
         if (res == bgRes) return;
         boolean first = bgRes == 0;
         bgRes = res;
@@ -582,11 +610,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             bgPhoto.setImageResource(res);
             return;
         }
-        // Fade through black so the swap isn't a jump cut.
-        bgPhoto.animate().alpha(0f).setDuration(600).withEndAction(() -> {
-            bgPhoto.setImageResource(res);
-            bgPhoto.animate().alpha(1f).setDuration(900);
-        });
+        boolean topShown = bgPhotoTop.getAlpha() > 0.5f;
+        ImageView incoming = topShown ? bgPhoto : bgPhotoTop, outgoing = topShown ? bgPhotoTop : bgPhoto;
+        incoming.setImageResource(res);
+        bgPhotoTop.animate().cancel();
+        bgPhotoTop.animate().alpha(topShown ? 0f : 1f).setDuration(WALLPAPER_FADE_MS)
+                .withEndAction(() -> outgoing.setImageDrawable(null));   // one full-screen bitmap at rest
     }
 
     /** Shows the Wi-Fi network name on the button when we can read it, otherwise the connection type. */

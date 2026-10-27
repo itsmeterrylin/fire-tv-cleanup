@@ -33,6 +33,7 @@ step with screenshots from the TV. If you'd rather do it by hand, the pieces are
 | [`launcher/`](launcher/) | The tvOS-style launcher. Edit `app/src/main/res/values/config.xml` for your dock, hidden apps and Live TV package, then run `build-and-install.sh`. |
 | [`tools/tv.py`](tools/tv.py) | Pure-Python ADB client (shell, batch, push, pull). Works where the stock `adb` is blocked. |
 | [`tools/b64push.py`](tools/b64push.py) | Uploads larger files (APKs) as base64 chunks with an md5 check. |
+| [`tools/push_photos.py`](tools/push_photos.py) | Copies a downloaded Google Photos album (zip) or a folder of photos to the launcher's photo frame. |
 | [`tools/disable.sh`](tools/disable.sh), [`tools/restore.sh`](tools/restore.sh) | Apply or undo a debloat list. |
 | [`examples/`](examples/) | Per-TV debloat lists. Add yours, see [CONTRIBUTING.md](CONTRIBUTING.md). |
 
@@ -40,8 +41,11 @@ step with screenshots from the TV. If you'd rather do it by hand, the pieces are
 
 A small native Android TV home screen (`com.gathin.tvhome`), built for sets with 1 GB of RAM:
 
-- A full-screen photo that changes with the time of day: morning, afternoon, evening and night.
-  The greeting changes with it ("Good evening, Alex").
+- A full-screen photo that crossfades to the next one every 5 minutes, starting from one for the
+  time of day. The greeting follows the time of day ("Good evening, Alex").
+- A photo frame under the clock with your own photos, crossfading every 30 seconds. Download a
+  Google Photos album (album menu → Download all) and copy it to the TV with
+  [`tools/push_photos.py`](tools/push_photos.py). The frame stays hidden until there are photos.
 - A macOS-style dock of up to four apps with square icons. The focused icon grows and lifts, its
   neighbours grow a little, and a capsule label shows its name. Press Down for the rest of your
   apps.

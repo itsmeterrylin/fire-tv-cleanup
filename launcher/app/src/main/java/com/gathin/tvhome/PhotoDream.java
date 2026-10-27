@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class PhotoDream extends DreamService {
 
-    private static final int[] PHOTOS = {
+    static final int[] PHOTOS = {   // also the home screen's wallpapers
             R.drawable.saver_01, R.drawable.saver_02, R.drawable.saver_03, R.drawable.saver_04,
             R.drawable.saver_05, R.drawable.saver_06, R.drawable.saver_07, R.drawable.saver_08,
             R.drawable.saver_09, R.drawable.saver_10, R.drawable.saver_11, R.drawable.saver_12};

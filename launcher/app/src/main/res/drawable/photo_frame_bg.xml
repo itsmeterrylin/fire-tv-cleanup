@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Photo frame: rounded shape (the frame clips its photos to it), dark while the first photo loads. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="16dp" />
+    <solid android:color="#33000000" />
+</shape>
