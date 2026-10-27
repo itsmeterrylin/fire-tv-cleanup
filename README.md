@@ -97,7 +97,8 @@ tools/restore.sh examples/xiaomi-mi-tv-4a/debloat.txt        # undo it, restore 
 ## Fire TV
 
 Fire OS is Android underneath, but it guards its home screen. Tested on a Hisense Fire TV Edition
-(Fire OS 8, Android 11, model AFTOLCBC82).
+(Fire OS 8, Android 11, model AFTOLCBC82) and a Hisense 58U68HF (Fire OS 7, Android 9, model
+AFTHA001).
 
 ![Amazon screensaver (top) and the launcher's screensaver (bottom)](docs/firetv-screensaver-before-after.jpg)
 
@@ -117,7 +118,9 @@ How it differs from Android TV:
   opens the launcher whenever Amazon's home screen comes up, so Amazon's screen shows for a moment
   before yours.
 - **Settings keeps working.** Amazon's home screen also flashes up on the way into Settings, right
-  after a window from Amazon's settings app. The redirect leaves that flash alone.
+  after a window from Amazon's settings app. The redirect leaves that flash alone. On Fire OS 7
+  Settings is a tab of Amazon's home screen, so the redirect also watches for focus landing on its
+  Home tab (English UI), which is what Home and Back from Settings do.
 - **To turn the redirect off on the TV,** press Menu on the launcher's Settings button and choose
   **Use Amazon Home Screen**.
 - **ADB turns off when the TV restarts.** Turn **ADB debugging** back on in Developer Options

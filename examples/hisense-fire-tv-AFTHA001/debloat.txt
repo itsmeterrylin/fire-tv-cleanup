@@ -1,0 +1,19 @@
+# Hisense 58U68HF Fire TV, model AFTHA001 (hailey), Fire OS 7.7.1.7 / Android 9, build PS7717.5741N
+# Ads and telemetry only. Packages are disabled for user 0, never uninstalled. Undo with tools/restore.sh.
+# Amazon's launcher (com.amazon.tv.launcher) stays enabled: Fire OS needs it, and the launcher's
+# HomeRedirectService keeps it out of sight.
+# Not on Fire OS 7: com.amazon.device.telemetry.emitter.
+# Not listed (protected on the Fire OS 8 examples, untried here): com.amazon.ftvads.deeplinking,
+#   com.amazon.client.metrics.api, com.amazon.device.metrics, com.amazon.device.crashmanager
+# Undo everything:
+#   TV_HOST=<ip> tools/restore.sh examples/hisense-fire-tv-AFTHA001/debloat.txt com.amazon.tv.launcher
+#   TV_HOST=<ip> tools/venv/bin/python -I tools/tv.py 'settings delete secure enabled_accessibility_services'
+# Ads
+com.amazon.hybridadidservice      # advertising ID used for ad targeting
+com.amazon.kso.blackbird          # sponsored screensaver and lock-screen ads
+com.amazon.shoptv.client          # shopping upsell
+com.amazon.shoptv.firetv.client   # shopping upsell (Fire TV client)
+com.amazon.minitv.android.app     # miniTV, ad-supported free video
+com.amazon.tv.acr                 # automatic content recognition (what's on screen, incl. HDMI)
+# Telemetry
+com.amazon.wirelessmetrics.service

@@ -19,6 +19,9 @@ import android.view.accessibility.AccessibilityEvent;
  * flashes up on the way into Settings, right after a window from Amazon's settings app, so a home screen that
  * follows a settings window within SETTINGS_GRACE_MS is left alone. Also opens the launcher once at boot.
  *
+ * Fire OS 7 shows Settings as a tab of Amazon's home screen, so Home from Settings opens no window: it only moves
+ * focus to the Home tab (described as AMAZON_HOME_TAB, English UI). That focus change redirects too.
+ *
  * Turned on and off from the launcher (Menu on the Settings button) when the app holds WRITE_SECURE_SETTINGS
  * (granted over adb: pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS), or over adb:
  *   settings put secure enabled_accessibility_services com.gathin.tvhome/com.gathin.tvhome.HomeRedirectService
@@ -30,7 +33,9 @@ public class HomeRedirectService extends AccessibilityService {
     private static final String AMAZON_LAUNCHER = "com.amazon.tv.launcher";
     private static final String AMAZON_HOME = "HomeActivity";
     private static final String[] SETTINGS_APPS = {"com.amazon.tv.settings", "com.amazon.tv.quicksettings"};
-    private static final long SETTINGS_GRACE_MS = 2000;     // measured: settings window -> home flash ~200 ms
+    private static final String AMAZON_HOME_TAB = "Home";
+    // measured: settings window -> home flash ~200 ms, up to 2.6 s on Fire OS 7
+    private static final long SETTINGS_GRACE_MS = 5000;
     private static final long BOOT_WINDOW_MS = 3 * 60_000;  // service connecting this soon after boot = boot
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -44,9 +49,17 @@ public class HomeRedirectService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence pkg = event.getPackageName(), cls = event.getClassName();
         if (pkg == null || cls == null) return;
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
+            if (AMAZON_LAUNCHER.contentEquals(pkg) && AMAZON_HOME_TAB.contentEquals(
+                    String.valueOf(event.getContentDescription()))) {
+                Log.i(TAG, "Home tab focused: opening launcher");
+                handler.post(redirect);
+            }
+            return;
+        }
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         long now = SystemClock.uptimeMillis();
         for (String app : SETTINGS_APPS) if (pkg.toString().startsWith(app)) settingsSeenAt = now;
         handler.removeCallbacks(redirect);
