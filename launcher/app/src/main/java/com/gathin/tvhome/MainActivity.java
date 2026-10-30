@@ -688,8 +688,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // Morning 5-12, afternoon 12-17, evening 17-22, night 22-5. Indexes GREETINGS and BACKGROUNDS.
     private static final int[] GREETINGS = {
             R.string.good_morning, R.string.good_afternoon, R.string.good_evening, R.string.good_night};
-    private static final int[] BACKGROUNDS = {
-            R.drawable.bg_morning, R.drawable.bg_afternoon, R.drawable.bg_evening, R.drawable.bg_night};
 
     private static int dayPart() {
         int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
@@ -701,26 +699,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /** Weather next to the greeting: icon plus temperature, refreshed twice an hour. */
+    /** Weather next to the greeting: icon plus temperature, refreshed twice an hour. */
     private void refreshWeather() {
         if (weatherIcon == null) return;
-        WeatherLoader.load(this, (code, temp, fahrenheit) -> {
-            weatherIcon.setImageResource(weatherDrawable(code));
+        WeatherLoader.load(this, f -> {
+            weatherIcon.setImageResource(WeatherLoader.iconRes(f.code));
             weatherIcon.animate().alpha(0.7f).setDuration(400).start();
-            weatherTemp.setText(String.format(java.util.Locale.getDefault(), "%d°%s", temp, fahrenheit ? "F" : "C"));
+            weatherTemp.setText(String.format(java.util.Locale.getDefault(), "%d°%s",
+                    f.temp, f.fahrenheit ? "F" : "C"));
         });
-    }
-
-    private static int weatherDrawable(int code) {
-        if (code == 0) return R.drawable.ic_wx_sun;
-        if (code == 1 || code == 2) return R.drawable.ic_wx_partly;
-        if (code == 3) return R.drawable.ic_wx_cloud;
-        if (code == 45 || code == 48) return R.drawable.ic_wx_fog;
-        if (code >= 51 && code <= 67) return R.drawable.ic_wx_rain;
-        if (code >= 71 && code <= 77) return R.drawable.ic_wx_snow;
-        if (code >= 80 && code <= 82) return R.drawable.ic_wx_rain;
-        if (code == 85 || code == 86) return R.drawable.ic_wx_snow;
-        if (code >= 95) return R.drawable.ic_wx_storm;
-        return R.drawable.ic_wx_cloud;
     }
 
     private void updateGreeting() {
@@ -836,7 +823,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void updateBackground() {
-        int res = BACKGROUNDS[dayPart()];
+        int res = WallpaperEngine.timeOfDay()[dayPart()];
         applyContrast(WallpaperEngine.luminance(this, res));
         if (res == bgRes) return;
         boolean first = bgRes == 0;

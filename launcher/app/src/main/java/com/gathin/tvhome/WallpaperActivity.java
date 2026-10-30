@@ -93,7 +93,7 @@ public class WallpaperActivity extends Activity {
                 mark(source, WallpaperEngine.SOURCE_RANDOM) + "Random photos (picsum.photos)",
                 mark(source, WallpaperEngine.SOURCE_PHOTOS) + "My photos (" + photos + " in folder)",
                 "  Change every " + WallpaperEngine.intervalMinutes(this) + " min   ‹  ›",
-                "  Left / right on the remote changes it a minute at a time",
+                "  Left / right changes it a minute at a time. The screensaver follows.",
         };
         adapter.clear();
         adapter.addAll(rows);

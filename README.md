@@ -146,7 +146,8 @@ on do not work there, so this fork adds fallbacks:
 Also on this device: `minSdk` is 25, so the variable font's weights are baked into static instances
 (`open_sans_light`, `open_sans_medium`), and the launcher adds weather next to the greeting, wallpaper
 sources with rotation (bundled photos, picsum.photos, or your own folder), and text/icons that switch
-between dark and light according to the wallpaper's brightness.
+between dark and light according to the wallpaper's brightness. The screensaver uses the same photo
+source and rotation interval, with a larger clock, AM/PM and today's high/low beside it.
 
 ## Supported TVs
 

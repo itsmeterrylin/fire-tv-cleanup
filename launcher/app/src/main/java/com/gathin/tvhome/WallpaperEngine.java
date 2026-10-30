@@ -63,6 +63,12 @@ final class WallpaperEngine {
         return INTERVALS[0];
     }
 
+    /** The four photos the original launcher swapped by time of day. */
+    static int[] timeOfDay() {
+        return new int[]{R.drawable.bg_morning, R.drawable.bg_afternoon,
+                R.drawable.bg_evening, R.drawable.bg_night};
+    }
+
     static int[] bundled() {
         return PhotoDream.PHOTOS;
     }
@@ -97,8 +103,10 @@ final class WallpaperEngine {
             c.setConnectTimeout(10_000);
             c.setReadTimeout(15_000);
             c.setInstanceFollowRedirects(true);
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inPreferredConfig = Bitmap.Config.RGB_565;   // half the memory; this TV has ~1 GB
             try (InputStream in = c.getInputStream()) {
-                return BitmapFactory.decodeStream(in);
+                return BitmapFactory.decodeStream(in, null, o);
             }
         } finally {
             c.disconnect();
