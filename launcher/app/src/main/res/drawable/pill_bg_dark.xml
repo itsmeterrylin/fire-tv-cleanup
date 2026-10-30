@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pills on a light wallpaper: a light face normally, a solid dark one when focused, so the
+     selection is unmistakable against a bright photo. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#F2111111" />
+            <corners android:radius="21dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#3AFFFFFF" android:endColor="#1CFFFFFF" />
+            <stroke android:width="1dp" android:color="#33000000" />
+            <corners android:radius="21dp" />
+        </shape>
+    </item>
+</selector>

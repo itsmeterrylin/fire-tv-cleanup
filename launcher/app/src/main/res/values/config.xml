@@ -8,10 +8,10 @@
     <!-- Starting dock, in this order. After that the dock is edited on the TV (hold OK or press Menu on an app)
          and saved on the device. Missing apps are skipped. -->
     <string-array name="dock_apps">
-        <item>com.amazon.firetv.youtube</item>
-        <item>com.netflix.ninja</item>
-        <item>com.amazon.firebat</item>
-        <item>com.apple.airplay.amazon.airplay</item>
+        <item>com.nuvio.tv</item>
+        <item>org.smarttube.stable</item>
+        <item>com.apple.atve.amazon.appletv</item>
+        <item>com.sling</item>
     </string-array>
 
     <!-- Apps never shown as tiles (e.g. the Live TV app, which the Inputs menu already covers). -->
@@ -28,4 +28,10 @@
 
     <!-- Tiles per row in the grid, and the most apps the dock can hold. -->
     <integer name="columns">4</integer>
+
+    <!-- Weather next to the greeting. Leave latitude/longitude empty to use the network's approximate
+         location (looked up once, then cached). weather_units: auto, c, or f. -->
+    <string name="weather_latitude" translatable="false"></string>
+    <string name="weather_longitude" translatable="false"></string>
+    <string name="weather_units" translatable="false">auto</string>
 </resources>

@@ -2,6 +2,7 @@ package com.gathin.tvhome;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
@@ -18,6 +19,7 @@ import android.net.NetworkCapabilities;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -69,6 +71,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private View ambient;
     private TextView heroName;
     private View dockDot;
+    /** Span grid used by the dock and the app grid; recomputed when the dock size changes. */
+    private int spanBase;
+    private GridLayoutManager gridManager;
     // macOS dock magnification: focused icon and its neighbours grow from their bottom edge and lift.
     private static final float DOCK_MAGNIFY = 1.30f;
     private static final float DOCK_NEIGHBOUR = 1.10f;
@@ -78,7 +83,37 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int ambientColor;
     private boolean heroShown;
     private TextView greeting;
+    private TextView clock;
+    private TextView ampm;
+    private TextView date;
+    private TextView btnInputs;
+    private TextView btnSettings;
+    private TextView btnAdd;
+    private View scrim;
+    private boolean darkOnLight;
+    private ImageView weatherIcon;
+    private TextView weatherTemp;
+    private static final long WEATHER_MS = 30 * 60_000L;
+    private final Runnable weatherTick = new Runnable() {
+        @Override
+        public void run() {
+            refreshWeather();
+            handler.postDelayed(this, WEATHER_MS);
+        }
+    };
     private ImageView bgPhoto;
+    private ImageView bgPhotoTop;
+    private final java.util.Random wallpaperRandom = new java.util.Random();
+    private int wallpaperIndex;
+    private long lastWallpaperAt;
+    private String appliedWallpaperSource;
+    private final Runnable wallpaperTick = new Runnable() {
+        @Override
+        public void run() {
+            nextWallpaper();
+            handler.postDelayed(this, wallpaperIntervalMs());
+        }
+    };
     private int bgRes;
     private TextView btnWifi;
     private SpringAnimation springX, springY;
@@ -106,8 +141,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         @Override
         public void run() {
             updateGreeting();
-            updateBackground();
             updateWifiLabel();
+            if (WallpaperEngine.SOURCE_TIME.equals(WallpaperEngine.source(MainActivity.this))) updateBackground();
             handler.postDelayed(this, MINUTE_MS);
         }
     };
@@ -119,6 +154,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         density = getResources().getDisplayMetrics().density;
         COLUMNS = Math.max(1, getResources().getInteger(R.integer.columns));
         liveTvPkg = getString(R.string.live_tv_package).trim();
+
+        // Fire OS may not deliver BOOT_COMPLETED to sideloaded apps; starting the launcher also starts
+        // the redirect, so it comes back after a reboot as soon as anything opens this screen.
+        if (HomeRedirectService.isEnabled(this)) {
+            startService(new Intent(this, HomeRedirectService.class));
+            RedirectJobService.schedule(this);
+        }
 
         root = findViewById(R.id.root);
         glass = findViewById(R.id.glass);
@@ -132,27 +174,31 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ambient.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) ->
                 ambientGlow.setGradientRadius((r - l) * 0.62f));
         greeting = findViewById(R.id.greeting);
+        weatherIcon = findViewById(R.id.weatherIcon);
+        weatherTemp = findViewById(R.id.weatherTemp);
         bgPhoto = findViewById(R.id.bgPhoto);
+        bgPhotoTop = findViewById(R.id.bgPhotoTop);
         btnWifi = findViewById(R.id.btnWifi);
 
         grid = findViewById(R.id.grid);
-        // One span unit per cell of any dock size 1..COLUMNS: the dock row splits evenly, grid rows are COLUMNS wide.
-        final int spans = lcmUpTo(COLUMNS);
-        GridLayoutManager glm = new GridLayoutManager(this, spans);
-        glm.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
+        adapter = new AppAdapter(this, this, AppAdapter.MAX_DOCK);
+        // The dock and the grid share one span grid. COLUMNS * dockCount divides exactly both ways, so a
+        // dock of any size keeps equal-width icons and a COLUMNS-wide app row (integer division stays exact).
+        spanBase = COLUMNS * Math.max(1, adapter.dockCount());
+        gridManager = new GridLayoutManager(this, spanBase);
+        gridManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
             @Override
             public int getSpanSize(int position) {
-                return adapter.isDocked(position) ? spans / adapter.dockCount() : spans / COLUMNS;
+                int dock = Math.max(1, adapter.dockCount());
+                return adapter.isDocked(position) ? spanBase / dock : spanBase / COLUMNS;
             }
         });
-        grid.setLayoutManager(glm);
+        grid.setLayoutManager(gridManager);
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
 
         grid.setLayoutAnimation(new LayoutAnimationController(
                 AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
-        adapter = new AppAdapter(this, this, COLUMNS);
-        grid.addItemDecoration(new DockDecoration(adapter, COLUMNS, density));
         grid.setAdapter(adapter);
 
         // tvOS layout: push the dock row to the bottom of the screen; the grid hides below until you press Down.
@@ -183,11 +229,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             s.setSpring(new SpringForce().setStiffness(260f).setDampingRatio(0.58f));
         }
 
-        View btnInputs = findViewById(R.id.btnInputs);
-        View btnSettings = findViewById(R.id.btnSettings);
+        btnInputs = findViewById(R.id.btnInputs);
+        btnSettings = findViewById(R.id.btnSettings);
+        btnAdd = findViewById(R.id.btnAdd);
+        clock = findViewById(R.id.clock);
+        ampm = findViewById(R.id.ampm);
+        date = findViewById(R.id.date);
+        scrim = findViewById(R.id.scrim);
         btnInputs.setOnClickListener(v -> showInputs());
         btnWifi.setOnClickListener(v -> open(new Intent(Settings.ACTION_WIFI_SETTINGS)));
-        btnSettings.setOnClickListener(v -> open(new Intent(Settings.ACTION_SETTINGS)));
+        btnSettings.setOnClickListener(v -> showSettingsMenu(v));
+        btnAdd.setOnClickListener(v -> open(new Intent(this, AppPickerActivity.class)));
         btnSettings.setOnLongClickListener(v -> {
             showHomeScreenMenu(v);
             return true;
@@ -202,12 +254,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 showHomeScreenMenu(v);
                 return true;
             }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && v.getId() == R.id.btnInputs) return true;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && v.getId() == R.id.btnAdd) return true;
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == R.id.btnSettings;
         };
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
+        btnAdd.setOnKeyListener(pillKeys);
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -219,9 +272,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
     }
 
+    /** True while this launcher is on screen; the Home redirect uses it to stop re-opening it. */
+    static volatile boolean isVisible;
+
     @Override
     protected void onResume() {
         super.onResume();
+        isVisible = true;
         glassShown = false;
         glass.setAlpha(0f);
         heroShown = false;
@@ -229,11 +286,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         dockDot.setAlpha(0f);
         ambient.setAlpha(0f);
         adapter.reload();
+        // The dock may have gained or lost tiles (app picker): recompute the row spans so the icons keep
+        // equal widths instead of collapsing into uneven gaps.
+        int wantSpans = COLUMNS * Math.max(1, adapter.dockCount());
+        if (gridManager != null && wantSpans != spanBase) {
+            spanBase = wantSpans;
+            gridManager.setSpanCount(spanBase);
+            gridManager.getSpanSizeLookup().invalidateSpanIndexCache();
+        }
+        if (gridManager != null) gridManager.getSpanSizeLookup().invalidateSpanIndexCache();
+        grid.invalidateItemDecorations();
+        applyDockPadding();
         grid.scheduleLayoutAnimation();
         updateGreeting();
-        updateBackground();
         updateWifiLabel();
+        startWallpapers();
         handler.postDelayed(minuteTick, MINUTE_MS);
+        handler.removeCallbacks(weatherTick);
+        handler.post(weatherTick);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         if (cm != null) cm.registerDefaultNetworkCallback(networkCallback);
 
@@ -248,7 +318,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
+        isVisible = false;
         handler.removeCallbacks(minuteTick);
+        handler.removeCallbacks(weatherTick);
+        handler.removeCallbacks(wallpaperTick);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         if (cm != null) cm.unregisterNetworkCallback(networkCallback);
     }
@@ -320,6 +393,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /** Scale dock icons by distance from the focused one; focused < 0 resets them all. */
+
+    /**
+     * The dock shares the grid's width, so a bigger dock needs less side padding or the icons overlap.
+     * Each icon gets one tile plus a gap, centred; the side padding shrinks as the dock grows.
+     */
+    private void applyDockPadding() {
+        if (grid == null) return;
+        grid.post(() -> {
+            int gridWidth = grid.getWidth();            // the grid, not the screen: the root has side padding
+            if (gridWidth == 0) return;
+            float d = getResources().getDisplayMetrics().density;
+            int dock = Math.max(1, adapter.dockCount());
+            int cell = (int) (56 * d) + (int) (20 * d); // one icon plus its gap
+            int pad = (gridWidth - dock * cell) / 2;
+            pad = Math.max((int) (28 * d), Math.min(pad, (int) (264 * d)));
+            if (grid.getPaddingLeft() != pad || grid.getPaddingRight() != pad) {
+                grid.setPadding(pad, grid.getPaddingTop(), pad, grid.getPaddingBottom());
+            }
+        });
+    }
+
     private void magnifyDock(int focused) {
         RecyclerView.LayoutManager lm = grid.getLayoutManager();
         if (lm == null) return;
@@ -419,15 +513,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return true;
     }
 
-    private static int lcmUpTo(int n) {
-        int l = 1;
-        for (int i = 2; i <= n; i++) {
-            int a = l, b = i;
-            while (b != 0) { int t = a % b; a = b; b = t; }
-            l = l / a * i;
-        }
-        return l;
-    }
 
     // ---- dock editing ----------------------------------------------------------------------------
 
@@ -487,6 +572,54 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     // Escape hatch on the TV itself: Menu (or hold OK) on the Settings button switches the Home redirect.
+    /** The gear's popup: the Fire TV settings screens an app is allowed to open. */
+    private void showSettingsMenu(View anchor) {
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        int width = (int) (320 * density);
+        final PopupWindow popup = new PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popup.setOutsideTouchable(true);
+        popup.setAnimationStyle(0);
+        popup.setElevation(0f);
+
+        addInputRow(rows, popup, R.drawable.ic_wifi, getString(R.string.settings_wifi), -1,
+                () -> open(new Intent(Settings.ACTION_WIFI_SETTINGS)));
+        addInputRow(rows, popup, R.drawable.ic_info, getString(R.string.settings_apps), -1,
+                () -> openFireTvScreen("tv.applications.ApplicationsActivity"));
+        addInputRow(rows, popup, R.drawable.ic_settings, getString(R.string.settings_device), -1,
+                () -> openFireTvScreen("tv.device.DeviceActivity"));
+        addInputRow(rows, popup, R.drawable.ic_input, getString(R.string.settings_bluetooth), -1,
+                () -> openFireTvScreen("tv.controllers_bluetooth_devices.ControllersAndBluetoothActivity"));
+        addInputRow(rows, popup, R.drawable.ic_av, getString(R.string.wallpaper), -1,
+                () -> open(new Intent(this, WallpaperActivity.class)));
+        addInputRow(rows, popup, R.drawable.ic_livetv, getString(R.string.settings_amazon_home), -1,
+                () -> openAmazonHome());
+
+        popup.showAsDropDown(anchor, anchor.getWidth() - width, (int) (10 * density), Gravity.START);
+        rows.getChildAt(0).requestFocus();
+    }
+
+    private void openFireTvScreen(String activitySuffix) {
+        try {
+            startActivity(new Intent()
+                    .setComponent(new ComponentName("com.amazon.tv.settings.v2",
+                            "com.amazon.tv.settings.v2." + activitySuffix))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.settings_unavailable, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** Fire OS home, for the settings screens it guards with signature permissions. */
+    private void openAmazonHome() {
+        HomeRedirectService.suspend(20_000);
+        open(new Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_HOME)
+                .setComponent(new ComponentName("com.amazon.tv.launcher",
+                        "com.amazon.tv.launcher.ui.HomeActivity_vNext")));
+    }
+
     private void showHomeScreenMenu(View anchor) {
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
@@ -567,14 +700,144 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return 3;
     }
 
+    /** Weather next to the greeting: icon plus temperature, refreshed twice an hour. */
+    private void refreshWeather() {
+        if (weatherIcon == null) return;
+        WeatherLoader.load(this, (code, temp, fahrenheit) -> {
+            weatherIcon.setImageResource(weatherDrawable(code));
+            weatherIcon.animate().alpha(0.7f).setDuration(400).start();
+            weatherTemp.setText(String.format(java.util.Locale.getDefault(), "%d°%s", temp, fahrenheit ? "F" : "C"));
+        });
+    }
+
+    private static int weatherDrawable(int code) {
+        if (code == 0) return R.drawable.ic_wx_sun;
+        if (code == 1 || code == 2) return R.drawable.ic_wx_partly;
+        if (code == 3) return R.drawable.ic_wx_cloud;
+        if (code == 45 || code == 48) return R.drawable.ic_wx_fog;
+        if (code >= 51 && code <= 67) return R.drawable.ic_wx_rain;
+        if (code >= 71 && code <= 77) return R.drawable.ic_wx_snow;
+        if (code >= 80 && code <= 82) return R.drawable.ic_wx_rain;
+        if (code == 85 || code == 86) return R.drawable.ic_wx_snow;
+        if (code >= 95) return R.drawable.ic_wx_storm;
+        return R.drawable.ic_wx_cloud;
+    }
+
     private void updateGreeting() {
         String text = getString(GREETINGS[dayPart()]);
         String name = getString(R.string.user_name).trim();
         greeting.setText(name.isEmpty() ? text : text + ", " + name);
     }
 
+    // ---- text and icon contrast -------------------------------------------------------------
+
+    /**
+     * Dark text and icons over a light wallpaper, white over a dark one. The pills swap to a dark
+     * translucent face and the scrim flips from darkening to brightening so both stay readable.
+     */
+    private void applyContrast(float luminance) {
+        boolean dark = luminance > 0.55f;
+        if (dark == darkOnLight) return;
+        darkOnLight = dark;
+        int primary = dark ? 0xFF0E0E0F : 0xFFFFFFFF;
+        int secondary = dark ? 0xCC000000 : 0xB3FFFFFF;
+        int tertiary = dark ? 0xA6000000 : 0x8CFFFFFF;
+        if (clock != null) clock.setTextColor(primary);
+        if (ampm != null) ampm.setTextColor(secondary);
+        if (date != null) date.setTextColor(secondary);
+        if (greeting != null) greeting.setTextColor(tertiary);
+        if (weatherTemp != null) weatherTemp.setTextColor(tertiary);
+        if (weatherIcon != null) weatherIcon.setColorFilter(tertiary);
+        if (scrim != null) scrim.setBackgroundResource(dark ? R.drawable.bg_scrim_light : R.drawable.bg_scrim);
+        if (adapter != null) adapter.setDarkText(dark);
+        // Icon tint per state: focused pills flip their icon so the selection is always visible.
+        int focusedIcon = dark ? 0xFFFFFFFF : 0xFF111111;
+        int normalIcon = dark ? 0xFF111111 : 0xFFFFFFFF;
+        android.content.res.ColorStateList iconTint = new android.content.res.ColorStateList(
+                new int[][]{{android.R.attr.state_focused}, {}},
+                new int[]{focusedIcon, normalIcon});
+        for (TextView pill : new TextView[]{btnInputs, btnWifi, btnSettings, btnAdd}) {
+            if (pill == null) continue;
+            pill.setBackgroundResource(dark ? R.drawable.pill_bg_dark : R.drawable.pill_bg);
+            pill.setTextColor(getResources().getColorStateList(
+                    dark ? R.color.pill_text_dark : R.color.pill_text));
+            pill.setCompoundDrawableTintList(iconTint);
+        }
+    }
+
+    // ---- wallpapers -------------------------------------------------------------------------
+
+    private long wallpaperIntervalMs() {
+        return Math.max(1, WallpaperEngine.intervalMinutes(this)) * 60_000L;
+    }
+
+    /** Starts (or restarts) rotation for the chosen source; time-of-day keeps the original behaviour. */
+    private void startWallpapers() {
+        handler.removeCallbacks(wallpaperTick);
+        String source = WallpaperEngine.source(this);
+        if (!source.equals(appliedWallpaperSource)) {   // a different pack was chosen: show one now
+            appliedWallpaperSource = source;
+            lastWallpaperAt = 0;
+        }
+        if (WallpaperEngine.SOURCE_TIME.equals(source)) {
+            updateBackground();
+            return;
+        }
+        if (System.currentTimeMillis() - lastWallpaperAt >= wallpaperIntervalMs()) nextWallpaper();
+        handler.postDelayed(wallpaperTick, wallpaperIntervalMs());
+    }
+
+    private void nextWallpaper() {
+        String source = WallpaperEngine.source(this);
+        if (WallpaperEngine.SOURCE_BUNDLED.equals(source)) {
+            int[] photos = WallpaperEngine.bundled();
+            wallpaperIndex = (wallpaperIndex + 1) % photos.length;
+            crossfade(photos[wallpaperIndex], null);
+        } else if (WallpaperEngine.SOURCE_RANDOM.equals(source)) {
+            final String url = WallpaperEngine.randomUrl(wallpaperRandom);
+            new Thread(() -> {
+                try {
+                    android.graphics.Bitmap b = WallpaperEngine.download(url);
+                    if (b != null) runOnUiThread(() -> crossfade(0, b));
+                } catch (Exception ignored) {
+                }
+            }, "wallpaper").start();
+        } else if (WallpaperEngine.SOURCE_PHOTOS.equals(source)) {
+            java.util.List<java.io.File> files = WallpaperEngine.photos(this);
+            if (files.isEmpty()) return;
+            wallpaperIndex = (wallpaperIndex + 1) % files.size();
+            final java.io.File f = files.get(wallpaperIndex);
+            new Thread(() -> {
+                android.graphics.Bitmap b = WallpaperEngine.decode(f);
+                if (b != null) runOnUiThread(() -> crossfade(0, b));
+            }, "wallpaper").start();
+        }
+    }
+
+    /** Fades the incoming wallpaper in over the current one, then makes it the base image. */
+    private void crossfade(int res, android.graphics.Bitmap bitmap) {
+        applyContrast(bitmap != null ? WallpaperEngine.luminance(bitmap)
+                : WallpaperEngine.luminance(this, res));
+        if (bgPhotoTop == null) {                       // no second layer: swap directly
+            if (bitmap != null) bgPhoto.setImageBitmap(bitmap); else bgPhoto.setImageResource(res);
+            lastWallpaperAt = System.currentTimeMillis();
+            return;
+        }
+        if (bitmap != null) bgPhotoTop.setImageBitmap(bitmap);
+        else bgPhotoTop.setImageResource(res);
+        bgPhotoTop.animate().cancel();
+        bgPhotoTop.setAlpha(0f);
+        bgPhotoTop.animate().alpha(1f).setDuration(1600).withEndAction(() -> {
+            if (bitmap != null) bgPhoto.setImageBitmap(bitmap); else bgPhoto.setImageResource(res);
+            bgPhotoTop.setAlpha(0f);
+            bgPhotoTop.setImageDrawable(null);
+        }).start();
+        lastWallpaperAt = System.currentTimeMillis();
+    }
+
     private void updateBackground() {
         int res = BACKGROUNDS[dayPart()];
+        applyContrast(WallpaperEngine.luminance(this, res));
         if (res == bgRes) return;
         boolean first = bgRes == 0;
         bgRes = res;
@@ -672,7 +935,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 CharSequence l = info.loadLabel(this);
                 String label = l == null ? info.getId() : l.toString();
                 boolean hdmi = info.getType() == TvInputInfo.TYPE_HDMI;
-                if (hdmi && !label.toUpperCase().contains("HDMI")) label = "HDMI " + label;
+                if (hdmi && !label.toUpperCase(java.util.Locale.ROOT).contains("HDMI")) label = "HDMI " + label;
                 final String id = info.getId();
                 int state = tim.getInputState(id);
                 if (!hdmi && rows.getChildCount() > 0 && !sawNonHdmi) addSeparator(rows);
