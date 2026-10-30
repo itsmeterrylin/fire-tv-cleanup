@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class PhotoDream extends DreamService {
 
-    private static final int[] PHOTOS = {
+    static final int[] PHOTOS = {   // also the home screen's wallpapers
             R.drawable.saver_01, R.drawable.saver_02, R.drawable.saver_03, R.drawable.saver_04,
             R.drawable.saver_05, R.drawable.saver_06, R.drawable.saver_07, R.drawable.saver_08,
             R.drawable.saver_09, R.drawable.saver_10, R.drawable.saver_11, R.drawable.saver_12};
@@ -112,8 +112,9 @@ public class PhotoDream extends DreamService {
         c.setFormat24Hour("HH:mm");
         c.setTextColor(0xE6FFFFFF);
         c.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
-        c.setTypeface(getResources().getFont(R.font.open_sans));
-        c.setFontVariationSettings("'wght' 300");
+        // Resources.getFont / setFontVariationSettings are API 26; this stick is API 25.
+        c.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(this, R.font.open_sans_light));
+        if (android.os.Build.VERSION.SDK_INT >= 26) c.setFontVariationSettings("'wght' 300");
         c.setShadowLayer(12f, 0f, 2f, 0x99000000);
         float dp = getResources().getDisplayMetrics().density;
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
