@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- Lets the launcher turn its Home redirect on and off from the TV; granted over adb (pm grant). -->
-    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <!-- Fire OS 6 binds no third-party accessibility services, so the redirect watches logcat instead. -->
+    <!-- Granted over adb on Fire OS 6: the only way to watch for Amazon's home screen. -->
+    <uses-permission android:name="android.permission.READ_LOGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:label="@string/app_name"
@@ -28,9 +33,20 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".WallpaperActivity"
+            android:exported="true"
+            android:theme="@style/Theme.TvHome" />
+
+        <activity
+            android:name=".AppPickerActivity"
+            android:exported="true"
+            android:theme="@style/Theme.TvHome" />
 
         <!-- Screensaver: the Manhattan photos with a slow zoom and a clock. Selected over adb, see the class. -->
         <service
@@ -44,18 +60,27 @@
             </intent-filter>
         </service>
 
-        <!-- Opens this launcher whenever Amazon's home screen comes up. Enabled over adb, see the class. -->
+        <!-- Opens this launcher whenever Amazon's home screen comes up, by watching logcat. See the class. -->
         <service
             android:name=".HomeRedirectService"
             android:exported="true"
-            android:label="@string/home_redirect_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            android:label="@string/home_redirect_label" />
+
+        <service
+            android:name=".RedirectJobService"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
             <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <!-- Fire OS fast boot -->
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.amazon.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/home_redirect_service" />
-        </service>
+        </receiver>
     </application>
 </manifest>

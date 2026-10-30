@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="#FF000000">
 
-    <!-- Time-of-day photo, swapped in code. -->
+    <!-- Wallpaper photo, swapped in code. bgPhotoTop is the incoming image during a crossfade. -->
     <ImageView
         android:id="@+id/bgPhoto"
         android:layout_width="match_parent"
@@ -13,7 +13,16 @@
         android:scaleType="centerCrop"
         android:importantForAccessibility="no" />
 
+    <ImageView
+        android:id="@+id/bgPhotoTop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:scaleType="centerCrop"
+        android:importantForAccessibility="no" />
+
     <View
+        android:id="@+id/scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/bg_scrim" />
@@ -38,8 +47,7 @@
         android:paddingBottom="6dp"
         android:textColor="#F2FFFFFF"
         android:textSize="12sp"
-        android:fontFamily="@font/open_sans"
-        android:fontVariationSettings="'wght' 500"
+        android:fontFamily="@font/open_sans_medium"
         android:singleLine="true" />
 
     <LinearLayout
@@ -61,17 +69,40 @@
                 android:layout_alignParentStart="true"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/greeting"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
-                    android:textColor="#8CFFFFFF"
-                    android:textSize="12sp"
-                    android:fontFamily="@font/open_sans"
-                    android:fontVariationSettings="'wght' 500"
-                    android:letterSpacing="0.22"
-                    android:textAllCaps="true" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/greeting"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="#8CFFFFFF"
+                        android:textSize="12sp"
+                        android:fontFamily="@font/open_sans_medium"
+                        android:letterSpacing="0.22"
+                        android:textAllCaps="true" />
+
+                    <ImageView
+                        android:id="@+id/weatherIcon"
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_marginStart="10dp"
+                        android:alpha="0"
+                        android:contentDescription="@string/weather" />
+
+                    <TextView
+                        android:id="@+id/weatherTemp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:textColor="#8CFFFFFF"
+                        android:textSize="12sp"
+                        android:fontFamily="@font/open_sans_medium" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -87,8 +118,7 @@
                         android:format24Hour="HH:mm"
                         android:textColor="#FFFFFFFF"
                         android:textSize="52sp"
-                        android:fontFamily="@font/open_sans"
-                        android:fontVariationSettings="'wght' 300"
+                        android:fontFamily="@font/open_sans_light"
                         android:letterSpacing="-0.04"
                         android:includeFontPadding="false" />
 
@@ -103,35 +133,25 @@
                         android:format24Hour=""
                         android:textColor="#B3FFFFFF"
                         android:textSize="15sp"
-                        android:fontFamily="@font/open_sans"
-                        android:fontVariationSettings="'wght' 500"
+                        android:fontFamily="@font/open_sans_medium"
                         android:letterSpacing="0.08"
                         android:textAllCaps="true" />
 
-                    <View
-                        android:layout_width="1dp"
-                        android:layout_height="26dp"
-                        android:layout_gravity="bottom"
-                        android:layout_marginStart="16dp"
-                        android:layout_marginEnd="16dp"
-                        android:layout_marginBottom="8dp"
-                        android:background="#33FFFFFF" />
-
-                    <TextClock
-                        android:id="@+id/date"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="bottom"
-                        android:layout_marginBottom="9dp"
-                        android:format12Hour="EEEE  d MMMM"
-                        android:format24Hour="EEEE  d MMMM"
-                        android:textColor="#A6FFFFFF"
-                        android:textSize="14sp"
-                        android:fontFamily="@font/open_sans"
-                        android:fontVariationSettings="'wght' 400"
-                        android:letterSpacing="0.14"
-                        android:textAllCaps="true" />
                 </LinearLayout>
+
+                <TextClock
+                    android:id="@+id/date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginTop="2dp"
+                    android:format12Hour="EEEE  d MMMM"
+                    android:format24Hour="EEEE  d MMMM"
+                    android:textColor="#A6FFFFFF"
+                    android:textSize="14sp"
+                    android:fontFamily="@font/open_sans_medium"
+                    android:letterSpacing="0.14"
+                    android:textAllCaps="true" />
             </LinearLayout>
 
             <LinearLayout
@@ -142,6 +162,13 @@
                 android:layout_alignBottom="@id/leftBlock"
                 android:layout_marginBottom="6dp"
                 android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btnAdd"
+                    style="@style/TopIconButton"
+                    android:contentDescription="@string/add_app"
+                    android:drawableStart="@drawable/ic_dock_add"
+                    android:nextFocusDown="@+id/grid" />
 
                 <TextView
                     android:id="@+id/btnInputs"

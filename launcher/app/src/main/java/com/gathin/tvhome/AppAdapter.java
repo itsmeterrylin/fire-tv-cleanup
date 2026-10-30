@@ -85,7 +85,10 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     private final TileListener listener;
     private static final String PREFS = "tvhome";
     private static final String PREF_DOCK = "dock";
+    /** Most apps the dock will hold; the app picker enforces the same number. */
+    static final int MAX_DOCK = 12;
     private final int maxDock;
+    private boolean darkText;
     private int dockCount;
     /** Pinned packages in dock order, including any that are not installed right now. */
     private final List<String> pinned = new ArrayList<>();
@@ -104,7 +107,19 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         this.hidden = new HashSet<>(Arrays.asList(ctx.getResources().getStringArray(R.array.hidden_apps)));
     }
 
+    void setDarkText(boolean dark) {
+        if (dark == darkText) return;
+        darkText = dark;
+        notifyDataSetChanged();
+    }
+
     void reload() {
+        // The app picker writes the dock straight to preferences, so re-read it on every reload.
+        String savedDock = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(PREF_DOCK, null);
+        if (savedDock != null) {
+            pinned.clear();
+            if (!savedDock.isEmpty()) pinned.addAll(Arrays.asList(savedDock.split(",")));
+        }
         PackageManager pm = ctx.getPackageManager();
         Intent probe = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         List<ResolveInfo> found = pm.queryIntentActivities(probe, 0);
@@ -203,6 +218,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     public void onBindViewHolder(@NonNull Holder h, int position) {
         Entry e = items.get(position);
         h.name.setText(e.label);
+        h.name.setTextColor(darkText ? 0xF2000000 : 0xF2FFFFFF);
         boolean docked = isDocked(position);
         h.name.setVisibility(docked ? View.INVISIBLE : View.VISIBLE);   // the dock uses the tooltip instead
         h.name.setAlpha(0f);
@@ -229,6 +245,12 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     }
 
     private void launch(Entry e) {
+        if (ctx.getPackageName().equals(e.pkg)) {
+            // The "+" dock tile: pick which apps are pinned.
+            ctx.startActivity(new Intent(ctx, AppPickerActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return;
+        }
         Intent i = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
                 .setComponent(e.component)

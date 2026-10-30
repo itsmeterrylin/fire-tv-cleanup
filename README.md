@@ -127,6 +127,28 @@ How it differs from Android TV:
 - **AirPlay has no screen of its own.** The AirPlay tile opens nothing, and casting from an iPhone
   works anyway.
 
+### Fire OS 6 (Android 7.1.2)
+
+Tested on a Fire TV Stick 4K 1st gen (AFTMM, Fire OS 6.7.1.1). Three things the Fire OS 8 setup relies
+on do not work there, so this fork adds fallbacks:
+
+- **The accessibility redirect does not bind.** Amazon's `AmazonAccessibilityManagerService` only
+  trusts services it knows and logs `A11yAuthorizer trust=false` for sideloaded apps. `HomeRedirectService`
+  therefore watches `logcat ActivityManager:I *:S` for Amazon's home screen instead, which needs
+  `pm grant com.gathin.tvhome android.permission.READ_LOGS` (granted over adb; it survives reboots).
+  Home is raised with `AppTask.moveToFront()` and lands in well under a second.
+- **`BOOT_COMPLETED` is not delivered to sideloaded apps**, so a persisted `JobScheduler` job restarts
+  the redirect after a reboot; the launcher also registers as a leanback app so it stays reachable.
+- **`android.settings.SETTINGS` hits a dummy handler** and Fire OS guards most settings screens with
+  signature permissions, so the gear opens a popup with the screens an app may start (Wi-Fi,
+  Applications, My Fire TV, Controllers & Bluetooth, Wallpaper), plus Amazon's home as the escape hatch.
+
+Also on this device: `minSdk` is 25, so the variable font's weights are baked into static instances
+(`open_sans_light`, `open_sans_medium`), and the launcher adds weather next to the greeting, wallpaper
+sources with rotation (bundled photos, picsum.photos, or your own folder), and text/icons that switch
+between dark and light according to the wallpaper's brightness. The screensaver uses the same photo
+source and rotation interval, with a larger clock, AM/PM and today's high/low beside it.
+
 ## Supported TVs
 
 Android TV and Google TV: Xiaomi/Redmi, TCL, Hisense, Sony, OnePlus, Realme, Nvidia Shield and most

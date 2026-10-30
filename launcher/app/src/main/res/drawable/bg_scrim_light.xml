@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brightens the photo behind the clock when the wallpaper is light and the text turns dark. Strong
+     at the top so dark text stays readable even over busy photos. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#E6FFFFFF"
+        android:centerColor="#4DFFFFFF"
+        android:endColor="#66FFFFFF" />
+</shape>
