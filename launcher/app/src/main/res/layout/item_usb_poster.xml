@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One USB title (2:3 poster): the name as text until the picture arrives, a corner badge ("3 episodes",
+     "Watched"), and a progress bar along the bottom for anything half-watched. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="92dp"
+    android:layout_height="138dp"
+    android:layout_marginEnd="14dp"
+    android:background="@drawable/poster_bg"
+    android:foreground="@drawable/poster_focus"
+    android:focusable="true"
+    android:clickable="true">
+
+    <TextView
+        android:id="@+id/fallback"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:padding="8dp"
+        android:maxLines="6"
+        android:ellipsize="end"
+        android:textColor="#B3FFFFFF"
+        android:textSize="11sp"
+        android:fontFamily="@font/inter" />
+
+    <ImageView
+        android:id="@+id/image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="5dp"
+        android:paddingStart="5dp"
+        android:paddingEnd="5dp"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp"
+        android:background="@drawable/usb_badge_bg"
+        android:textColor="#FFFFFFFF"
+        android:textSize="9sp"
+        android:fontFamily="@font/inter"
+        android:fontVariationSettings="'wght' 600"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/progress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="bottom"
+        android:max="1000"
+        android:progressDrawable="@drawable/usb_progress"
+        android:visibility="gone" />
+</FrameLayout>

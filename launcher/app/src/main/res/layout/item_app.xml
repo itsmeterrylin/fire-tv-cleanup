@@ -7,21 +7,21 @@
     android:clipChildren="false"
     android:clipToPadding="false">
 
-    <!-- Diffuse drop shadow behind the icon (120dp canvas around the 56dp icon, offset 6dp down). -->
+    <!-- Diffuse drop shadow behind the icon (170dp canvas around the 80dp icon, offset 6dp down). -->
     <ImageView
         android:id="@+id/shadow"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
+        android:layout_width="170dp"
+        android:layout_height="170dp"
         android:layout_gravity="center_horizontal|top"
-        android:layout_marginTop="-26dp"
+        android:layout_marginTop="-37dp"
         android:src="@drawable/dock_shadow"
         android:visibility="gone"
         android:importantForAccessibility="no" />
 
     <FrameLayout
         android:id="@+id/card"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
         android:layout_gravity="center_horizontal|top"
         android:background="@drawable/tile_bg"
         android:focusable="true"
@@ -36,8 +36,8 @@
 
         <ImageView
             android:id="@+id/icon"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
+            android:layout_width="54dp"
+            android:layout_height="54dp"
             android:layout_gravity="center"
             android:visibility="gone"
             android:contentDescription="@null" />
@@ -55,16 +55,16 @@
             android:ellipsize="end"
             android:textColor="#FFFFFFFF"
             android:textSize="13sp"
-            android:fontFamily="@font/open_sans"
+            android:fontFamily="@font/inter"
             android:visibility="gone" />
     </FrameLayout>
 
     <TextView
         android:id="@+id/name"
-        android:layout_width="100dp"
+        android:layout_width="130dp"
         android:layout_height="22dp"
         android:layout_gravity="center_horizontal|top"
-        android:layout_marginTop="63dp"
+        android:layout_marginTop="87dp"
         android:gravity="center"
         android:singleLine="true"
         android:ellipsize="end"
@@ -72,7 +72,7 @@
         android:translationY="-6dp"
         android:textColor="#F2FFFFFF"
         android:textSize="14sp"
-        android:fontFamily="@font/open_sans"
+        android:fontFamily="@font/inter"
         android:fontVariationSettings="'wght' 500"
         android:letterSpacing="0.02" />
 </FrameLayout>

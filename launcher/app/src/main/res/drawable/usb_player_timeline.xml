@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The player's timeline: track, buffered (lighter), watched (the USB screen's blue). Rounded, 6dp. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape><solid android:color="#40FFFFFF" /><corners android:radius="3dp" /></shape>
+    </item>
+    <item android:id="@android:id/secondaryProgress">
+        <clip><shape><solid android:color="#59FFFFFF" /><corners android:radius="3dp" /></shape></clip>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip><shape><solid android:color="#FF3FC1E8" /><corners android:radius="3dp" /></shape></clip>
+    </item>
+</layer-list>

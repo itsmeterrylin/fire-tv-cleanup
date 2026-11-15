@@ -28,7 +28,7 @@
         android:textColor="@drawable/pill_text"
         android:duplicateParentState="true"
         android:textSize="15sp"
-        android:fontFamily="@font/open_sans"
+        android:fontFamily="@font/inter"
         android:fontVariationSettings="'wght' 500"
         android:singleLine="true" />
 
@@ -46,6 +46,6 @@
         android:textColor="@drawable/pill_text_dim"
         android:duplicateParentState="true"
         android:textSize="11sp"
-        android:fontFamily="@font/open_sans"
+        android:fontFamily="@font/inter"
         android:letterSpacing="0.04" />
 </LinearLayout>

@@ -63,10 +63,17 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     static final class Entry {
         final String label;
         final ComponentName component;
-        final String pkg;
+        /** The app's package; this launcher's own USB screen uses "<package>.usb" so it is its own tile and pin. */
+        String pkg;
         /** Square dock art, or null: then the app's own icon sits on a graphite tile. */
         final Drawable square;
         final Drawable icon;
+        /** The app's 16:9 TV banner, or null. Shown filling the tile when there is no square art. */
+        Drawable tvBanner;
+        /** Tile colour behind a banner or icon, taken from the artwork's edge so it blends; 0 until computed. */
+        int edge;
+        /** False for phone-style apps listed through extra_apps; they are launched with CATEGORY_LAUNCHER. */
+        boolean leanback = true;
         int ambient;
 
         Entry(String label, ComponentName component, Drawable square, Drawable icon) {
@@ -77,6 +84,9 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
             this.icon = icon;
         }
     }
+
+    /** Tile and dock key of this launcher's USB screen (see Entry.pkg). */
+    static final String USB_KEY = "com.gathin.tvhome.usb";
 
     static final float FOCUS_SCALE = 1.10f;
     static final float CORNER_RATIO = 0.225f;
@@ -113,9 +123,14 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         for (ResolveInfo ri : found) {
             if (ri.activityInfo == null) continue;
             String pkg = ri.activityInfo.packageName;
-            if (pkg.equals(ctx.getPackageName()) || hidden.contains(pkg)) continue;
+            if (hidden.contains(pkg)) continue;
+            // This launcher is never a tile of its own, but its Trending and USB screens are.
+            boolean own = pkg.equals(ctx.getPackageName());
+            boolean usb = own && ri.activityInfo.name.equals(UsbActivity.class.getName());
+            if (own && !usb && !ri.activityInfo.name.equals(TrendingActivity.class.getName())) continue;
+            if (usb) pkg = USB_KEY;
             // One tile per app: skip extra launcher entries (AirPlay registers three).
-            Intent main = pm.getLeanbackLaunchIntentForPackage(pkg);
+            Intent main = own ? null : pm.getLeanbackLaunchIntentForPackage(pkg);
             ComponentName mainComponent = main != null ? main.getComponent() : null;
             if (mainComponent != null && !mainComponent.getClassName().equals(ri.activityInfo.name)) continue;
             if (!seen.add(pkg)) continue;
@@ -124,8 +139,23 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
             String squareName = DOCK_ICONS.get(pkg);
             int square = squareName == null ? 0
                     : ctx.getResources().getIdentifier(squareName, "drawable", ctx.getPackageName());
-            fresh.add(new Entry(label, new ComponentName(pkg, ri.activityInfo.name),
-                    square != 0 ? ctx.getDrawable(square) : null, icon));
+            Entry entry = new Entry(label, new ComponentName(ri.activityInfo.packageName, ri.activityInfo.name),
+                    square != 0 ? ctx.getDrawable(square) : null, icon);
+            entry.pkg = pkg;
+            entry.tvBanner = ri.activityInfo.loadBanner(pm);
+            fresh.add(entry);
+        }
+        // Phone-style apps with no TV entry (res/values/config.xml, extra_apps), e.g. the Appstore on Fire TV.
+        for (String pkg : ctx.getResources().getStringArray(R.array.extra_apps)) {
+            if (seen.contains(pkg) || hidden.contains(pkg)) continue;
+            Intent main = pm.getLaunchIntentForPackage(pkg);
+            if (main == null || main.getComponent() == null) continue;
+            ResolveInfo ri = pm.resolveActivity(main, 0);
+            if (ri == null || ri.activityInfo == null) continue;
+            seen.add(pkg);
+            Entry e = new Entry(String.valueOf(ri.loadLabel(pm)), main.getComponent(), null, ri.loadIcon(pm));
+            e.leanback = false;
+            fresh.add(e);
         }
         Collections.sort(fresh, (a, b) -> {
             int fa = pinned.indexOf(a.pkg), fb = pinned.indexOf(b.pkg);
@@ -214,12 +244,25 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         h.shadow.setScaleY(1f);
         h.shadow.setTranslationY(0f);
         h.label.setVisibility(View.GONE);
+        // Full-tile artwork, tvOS style: square dock art if drawn, else the app's TV banner on a tile of its own edge
+        // colour, else an opaque icon filling the tile. Only a see-through icon still sits small on graphite.
         boolean art = e.square != null;
-        h.card.setBackground(art ? null : ctx.getDrawable(R.drawable.dock_tile_bg));
-        h.banner.setImageDrawable(e.square);
-        h.banner.setVisibility(art ? View.VISIBLE : View.GONE);
-        h.icon.setImageDrawable(art ? null : e.icon);
-        h.icon.setVisibility(art ? View.GONE : View.VISIBLE);
+        Drawable fillArt = art ? e.square : e.tvBanner != null ? e.tvBanner : isOpaque(e.icon) ? e.icon : null;
+        if (fillArt != null) {
+            if (!art && e.edge == 0) e.edge = edgeColor(fillArt);
+            h.card.setBackground(art ? null : new android.graphics.drawable.ColorDrawable(e.edge));
+            h.banner.setScaleType(fillArt == e.tvBanner ? ImageView.ScaleType.FIT_CENTER : ImageView.ScaleType.CENTER_CROP);
+            h.banner.setImageDrawable(fillArt);
+            h.banner.setVisibility(View.VISIBLE);
+            h.icon.setImageDrawable(null);
+            h.icon.setVisibility(View.GONE);
+        } else {
+            h.card.setBackground(ctx.getDrawable(R.drawable.dock_tile_bg));
+            h.banner.setImageDrawable(null);
+            h.banner.setVisibility(View.GONE);
+            h.icon.setImageDrawable(e.icon);
+            h.icon.setVisibility(View.VISIBLE);
+        }
         h.card.setOnClickListener(v -> launch(e));
         h.card.setOnLongClickListener(v -> {
             int pos = h.getBindingAdapterPosition();
@@ -230,9 +273,16 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
 
     private void launch(Entry e) {
         Intent i = new Intent(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
-                .setComponent(e.component)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                .addCategory(e.leanback ? Intent.CATEGORY_LEANBACK_LAUNCHER : Intent.CATEGORY_LAUNCHER)
+                .setComponent(e.component);
+        // Other apps open in their own task. This launcher's own Trending screen opens on top of the home screen
+        // instead: with RESET_TASK_IF_NEEDED, the home screen's clearTaskOnLaunch wiped it before it could show.
+        // The USB screen has a task of its own (taskAffinity), so Home doesn't close the film it started.
+        if (!e.pkg.equals(ctx.getPackageName())) {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        }
+        // Phone-style entries such as the Appstore open inside Amazon's home screen: let it through briefly.
+        if (!e.leanback) HomeRedirectService.allowAmazonHome = true;
         try {
             ctx.startActivity(i);
         } catch (Exception ex) {
@@ -255,6 +305,44 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         Entry e = items.get(position);
         if (e.ambient == 0) e.ambient = vividColor(e.square != null ? e.square : e.icon);
         return e.ambient;
+    }
+
+    /** Draws a private copy of the drawable into an n-by-n bitmap (the live one's bounds stay untouched). */
+    private static Bitmap sample(Drawable live, int n) {
+        Drawable d = live.getConstantState() != null ? live.getConstantState().newDrawable().mutate() : live;
+        Rect saved = new Rect(d.getBounds());
+        Bitmap bmp = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888);
+        d.setBounds(0, 0, n, n);
+        d.draw(new Canvas(bmp));
+        d.setBounds(saved);
+        return bmp;
+    }
+
+    /** True when the icon has no transparent edge (a full square), so it can fill the tile. */
+    private static boolean isOpaque(Drawable icon) {
+        if (icon == null) return false;
+        Bitmap b = sample(icon, 24);
+        boolean opaque = true;
+        for (int i = 2; i < 22 && opaque; i += 4) {
+            if (Color.alpha(b.getPixel(i, 1)) < 250 || Color.alpha(b.getPixel(i, 22)) < 250
+                    || Color.alpha(b.getPixel(1, i)) < 250 || Color.alpha(b.getPixel(22, i)) < 250) opaque = false;
+        }
+        b.recycle();
+        return opaque;
+    }
+
+    /** Average colour of the artwork's outer border, so the tile around a letterboxed banner blends in. */
+    private static int edgeColor(Drawable art) {
+        Bitmap b = sample(art, 32);
+        long r = 0, g = 0, bl = 0, n = 0;
+        for (int i = 0; i < 32; i++) {
+            for (int p : new int[]{b.getPixel(i, 0), b.getPixel(i, 31), b.getPixel(0, i), b.getPixel(31, i)}) {
+                if (Color.alpha(p) < 128) continue;
+                r += Color.red(p); g += Color.green(p); bl += Color.blue(p); n++;
+            }
+        }
+        b.recycle();
+        return n == 0 ? 0xFF2C2C30 : Color.rgb((int) (r / n), (int) (g / n), (int) (bl / n));
     }
 
     private static int vividColor(Drawable live) {

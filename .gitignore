@@ -21,3 +21,15 @@ launcher/app/src/main/res/drawable-nodpi/dock_prime.png
 launcher/app/src/main/res/drawable-nodpi/dock_airplay.png
 tools/assets/
 screenshots/
+wallpapers/shinkai/
+# This TV's own build overlay (photos, captions, dock), log, backups and personal scripts
+launcher/app/src/release/
+changes.md
+apps.md
+backups/
+reapply-cleanup.ps1
+gradle-*-bin.zip
+/*.jpg
+tools/iconvenv/
+# Wallpapers you collect (Studio Ghibli, CoMix Wave): personal use only, never committed
+wallpapers/

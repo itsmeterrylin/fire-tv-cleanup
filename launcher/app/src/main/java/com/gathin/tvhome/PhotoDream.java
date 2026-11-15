@@ -15,18 +15,16 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Screensaver: the Manhattan photos full screen, each slowly zooming in, crossfading every SLIDE_MS, with a
- * small clock in the corner. Chosen with:
+ * Screensaver: the home screen's built-in photos (day and night) full screen, each slowly zooming in, crossfading every
+ * SLIDE_MS, with a small clock in the corner. Ad-free, unlike Amazon's. Chosen with:
  *   settings put secure screensaver_components com.gathin.tvhome/com.gathin.tvhome.PhotoDream
  * and Amazon's back with:
  *   settings put secure screensaver_components com.amazon.ftv.screensaver/.app.services.ScreensaverService
+ * To add photos: drop 1920x1080 JPEGs in res/drawable-nodpi and list them here.
  */
 public class PhotoDream extends DreamService {
 
-    private static final int[] PHOTOS = {
-            R.drawable.saver_01, R.drawable.saver_02, R.drawable.saver_03, R.drawable.saver_04,
-            R.drawable.saver_05, R.drawable.saver_06, R.drawable.saver_07, R.drawable.saver_08,
-            R.drawable.saver_09, R.drawable.saver_10, R.drawable.saver_11, R.drawable.saver_12};
+    private static final int[] PHOTOS = {R.drawable.bg_morning, R.drawable.bg_night};
     private static final long SLIDE_MS = 20_000;
     private static final long FADE_MS = 2_500;
     private static final float ZOOM = 1.08f;   // reached over one slide, then the next photo takes over
@@ -112,7 +110,7 @@ public class PhotoDream extends DreamService {
         c.setFormat24Hour("HH:mm");
         c.setTextColor(0xE6FFFFFF);
         c.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
-        c.setTypeface(getResources().getFont(R.font.open_sans));
+        c.setTypeface(getResources().getFont(R.font.inter));
         c.setFontVariationSettings("'wght' 300");
         c.setShadowLayer(12f, 0f, 2f, 0x99000000);
         float dp = getResources().getDisplayMetrics().density;

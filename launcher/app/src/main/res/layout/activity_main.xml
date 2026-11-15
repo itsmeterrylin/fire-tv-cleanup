@@ -18,28 +18,53 @@
         android:layout_height="match_parent"
         android:background="@drawable/bg_scrim" />
 
-    <!-- Ambient glow in the colour of the focused dock app. -->
+    <!-- tvOS-style frosted band behind the apps: a blurred, darkened copy of the photo's lower part, built in code. -->
+    <ImageView
+        android:id="@+id/bgBand"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
+
+    <!-- Ambient glow in the colour of the focused dock app. Hidden: it tinted the whole wallpaper (tvOS has none). -->
     <View
         android:id="@+id/ambient"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:visibility="gone"
         android:alpha="0" />
 
-    <!-- Name tooltip above the focused dock icon, positioned in code. -->
+    <!-- Large name of the focused dock app, above the glass shelf at its left edge; positioned in code. -->
     <TextView
         android:id="@+id/heroName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:alpha="0"
-        android:background="@drawable/dock_label_bg"
-        android:paddingStart="14dp"
-        android:paddingEnd="14dp"
-        android:paddingTop="5dp"
-        android:paddingBottom="6dp"
-        android:textColor="#F2FFFFFF"
+        android:textColor="#FFFFFFFF"
+        android:textSize="34sp"
+        android:fontFamily="@font/inter"
+        android:fontVariationSettings="'wght' 300"
+        android:letterSpacing="-0.02"
+        android:includeFontPadding="false"
+        android:shadowColor="#66000000"
+        android:shadowRadius="10"
+        android:shadowDy="1"
+        android:singleLine="true" />
+
+    <!-- Name of the current wallpaper, under the top-right buttons. -->
+    <TextView
+        android:id="@+id/wallCaption"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="78dp"
+        android:layout_marginEnd="60dp"
+        android:textColor="#CCFFFFFF"
         android:textSize="12sp"
-        android:fontFamily="@font/open_sans"
+        android:fontFamily="@font/inter"
         android:fontVariationSettings="'wght' 500"
+        android:shadowColor="#80000000"
+        android:shadowRadius="6"
         android:singleLine="true" />
 
     <LinearLayout
@@ -61,21 +86,22 @@
                 android:layout_alignParentStart="true"
                 android:orientation="vertical">
 
+                <!-- tvOS-style stack in Inter (a free SF Pro look-alike): greeting, large light clock, date. -->
                 <TextView
                     android:id="@+id/greeting"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:textColor="#8CFFFFFF"
-                    android:textSize="12sp"
-                    android:fontFamily="@font/open_sans"
-                    android:fontVariationSettings="'wght' 500"
-                    android:letterSpacing="0.22"
-                    android:textAllCaps="true" />
+                    android:layout_marginStart="2dp"
+                    android:textColor="#F2FFFFFF"
+                    android:textSize="24sp"
+                    android:fontFamily="@font/inter"
+                    android:fontVariationSettings="'wght' 600"
+                    android:letterSpacing="-0.01" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
                     android:orientation="horizontal"
                     android:baselineAligned="true">
 
@@ -86,52 +112,39 @@
                         android:format12Hour="h:mm"
                         android:format24Hour="HH:mm"
                         android:textColor="#FFFFFFFF"
-                        android:textSize="52sp"
-                        android:fontFamily="@font/open_sans"
-                        android:fontVariationSettings="'wght' 300"
-                        android:letterSpacing="-0.04"
+                        android:textSize="60sp"
+                        android:fontFamily="@font/inter"
+                        android:fontVariationSettings="'wght' 250"
+                        android:letterSpacing="-0.03"
                         android:includeFontPadding="false" />
 
                     <TextClock
                         android:id="@+id/ampm"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
+                        android:layout_marginStart="8dp"
                         android:layout_gravity="bottom"
-                        android:layout_marginBottom="8dp"
+                        android:layout_marginBottom="10dp"
                         android:format12Hour="a"
                         android:format24Hour=""
                         android:textColor="#B3FFFFFF"
-                        android:textSize="15sp"
-                        android:fontFamily="@font/open_sans"
-                        android:fontVariationSettings="'wght' 500"
-                        android:letterSpacing="0.08"
-                        android:textAllCaps="true" />
-
-                    <View
-                        android:layout_width="1dp"
-                        android:layout_height="26dp"
-                        android:layout_gravity="bottom"
-                        android:layout_marginStart="16dp"
-                        android:layout_marginEnd="16dp"
-                        android:layout_marginBottom="8dp"
-                        android:background="#33FFFFFF" />
-
-                    <TextClock
-                        android:id="@+id/date"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="bottom"
-                        android:layout_marginBottom="9dp"
-                        android:format12Hour="EEEE  d MMMM"
-                        android:format24Hour="EEEE  d MMMM"
-                        android:textColor="#A6FFFFFF"
-                        android:textSize="14sp"
-                        android:fontFamily="@font/open_sans"
-                        android:fontVariationSettings="'wght' 400"
-                        android:letterSpacing="0.14"
-                        android:textAllCaps="true" />
+                        android:textSize="18sp"
+                        android:fontFamily="@font/inter"
+                        android:fontVariationSettings="'wght' 500" />
                 </LinearLayout>
+
+                <TextClock
+                    android:id="@+id/date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginTop="4dp"
+                    android:format12Hour="EEEE, d MMMM"
+                    android:format24Hour="EEEE, d MMMM"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="18sp"
+                    android:fontFamily="@font/inter"
+                    android:fontVariationSettings="'wght' 500" />
             </LinearLayout>
 
             <LinearLayout
@@ -139,8 +152,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
-                android:layout_alignBottom="@id/leftBlock"
-                android:layout_marginBottom="6dp"
+                android:layout_alignParentTop="true"
                 android:orientation="horizontal">
 
                 <TextView
@@ -177,8 +189,8 @@
                 android:id="@+id/grid"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:paddingStart="264dp"
-                android:paddingEnd="264dp"
+                android:paddingStart="220dp"
+                android:paddingEnd="220dp"
                 android:paddingTop="10dp"
                 android:paddingBottom="40dp"
                 android:clipToPadding="false"

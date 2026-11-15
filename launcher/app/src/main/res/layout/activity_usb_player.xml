@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The USB player: the picture, and a TV overlay on top of it. Top: title, episode (or "Paused"), clock and when
+     it ends. Bottom: the timeline with times, and one row of pill buttons in the launcher's own style (the focused
+     one turns white). The overlay shows on OK; a slim timeline alone shows while skipping. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000">
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:focusable="false"
+        app:use_controller="false"
+        app:shutter_background_color="#FF000000" />
+
+    <!-- Pause screen: the picture dims and the story, details and cast show at the left (a moment after pausing). -->
+    <View
+        android:id="@+id/pauseDim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="#B3000000"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/top"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="@drawable/usb_player_top_scrim"
+        android:orientation="horizontal"
+        android:paddingStart="56dp"
+        android:paddingTop="30dp"
+        android:paddingEnd="56dp"
+        android:paddingBottom="70dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="@font/inter"
+                android:fontVariationSettings="'wght' 650"
+                android:singleLine="true"
+                android:textColor="#FFFFFFFF"
+                android:textSize="26sp" />
+
+            <TextView
+                android:id="@+id/subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/inter"
+                android:fontVariationSettings="'wght' 500"
+                android:singleLine="true"
+                android:textColor="#CCFFFFFF"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/clock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/inter"
+                android:fontVariationSettings="'wght' 500"
+                android:textColor="#FFFFFFFF"
+                android:textSize="22sp" />
+
+            <TextView
+                android:id="@+id/endsAt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="@font/inter"
+                android:textColor="#B3FFFFFF"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Above the top bar's shading, so the big title stays bright. -->
+    <LinearLayout
+        android:id="@+id/pauseInfo"
+        android:layout_width="620dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start|center_vertical"
+        android:layout_marginStart="56dp"
+        android:layout_marginBottom="70dp"
+        android:alpha="0"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/pauseTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 700"
+            android:letterSpacing="-0.01"
+            android:maxLines="2"
+            android:textColor="#FFFFFFFF"
+            android:textSize="32sp" />
+
+        <TextView
+            android:id="@+id/pauseMeta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 500"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#CCFFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/pauseStory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter"
+            android:lineSpacingMultiplier="1.2"
+            android:maxLines="4"
+            android:textColor="#E6FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/pauseDirector"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 500"
+            android:singleLine="true"
+            android:textColor="#B3FFFFFF"
+            android:textSize="13sp" />
+
+        <!-- Up to 6 people: round photo, actor, character. Filled in code. -->
+        <LinearLayout
+            android:id="@+id/pauseCast"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="horizontal" />
+    </LinearLayout>
+
+    <!-- "Boost 150% · TV speakers", "Voice boost on": a moment, top centre. -->
+    <TextView
+        android:id="@+id/badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="120dp"
+        android:background="@drawable/usb_badge_bg"
+        android:fontFamily="@font/inter"
+        android:fontVariationSettings="'wght' 600"
+        android:paddingStart="22dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="22dp"
+        android:paddingBottom="10dp"
+        android:textColor="#FFFFFFFF"
+        android:textSize="17sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/bottom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@drawable/usb_player_bottom_scrim"
+        android:orientation="vertical"
+        android:paddingStart="56dp"
+        android:paddingTop="80dp"
+        android:paddingEnd="56dp"
+        android:paddingBottom="34dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/elapsed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/inter"
+                android:fontVariationSettings="'wght' 500"
+                android:minWidth="64dp"
+                android:textColor="#FFFFFFFF"
+                android:textSize="14sp" />
+
+            <ProgressBar
+                android:id="@+id/timeline"
+                style="@android:style/Widget.Material.ProgressBar.Horizontal"
+                android:layout_width="0dp"
+                android:layout_height="6dp"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_weight="1"
+                android:max="10000"
+                android:progressDrawable="@drawable/usb_player_timeline" />
+
+            <TextView
+                android:id="@+id/remaining"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/inter"
+                android:fontVariationSettings="'wght' 500"
+                android:gravity="end"
+                android:minWidth="64dp"
+                android:textColor="#B3FFFFFF"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/buttons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btnBack"
+                style="@style/TopButton"
+                android:layout_marginStart="0dp"
+                android:drawableStart="@drawable/ic_player_back"
+                android:text="@string/usb_ten_s" />
+
+            <TextView
+                android:id="@+id/btnPlay"
+                style="@style/TopIconButton"
+                android:drawableStart="@drawable/ic_player_pause" />
+
+            <TextView
+                android:id="@+id/btnForward"
+                style="@style/TopButton"
+                android:drawableStart="@drawable/ic_player_forward"
+                android:text="@string/usb_ten_s" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/btnAudio"
+                style="@style/TopButton"
+                android:drawableStart="@drawable/ic_player_audio"
+                android:text="@string/usb_audio" />
+
+            <TextView
+                android:id="@+id/btnSubtitles"
+                style="@style/TopButton"
+                android:drawableStart="@drawable/ic_player_subtitles"
+                android:text="@string/usb_subtitles" />
+
+            <TextView
+                android:id="@+id/btnSound"
+                style="@style/TopButton"
+                android:drawableStart="@drawable/ic_player_sound"
+                android:text="@string/usb_sound" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
