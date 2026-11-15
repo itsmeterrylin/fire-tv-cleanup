@@ -218,6 +218,7 @@
                 android:layout_marginStart="14dp"
                 android:layout_marginEnd="14dp"
                 android:layout_weight="1"
+                android:focusable="false"
                 android:max="10000"
                 android:progressDrawable="@drawable/usb_player_timeline" />
 
@@ -284,5 +285,45 @@
                 android:drawableStart="@drawable/ic_player_sound"
                 android:text="@string/usb_sound" />
         </LinearLayout>
+    </LinearLayout>
+
+    <!-- Scrubbing (hold ◀ ▶): a marker on the timeline and, above it, a picture from that point of the film with
+         its time. Placed in code over the timeline. -->
+    <View
+        android:id="@+id/scrubThumb"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_gravity="top|start"
+        android:background="@drawable/usb_scrub_thumb"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/scrubPreview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/previewImage"
+            android:layout_width="256dp"
+            android:layout_height="144dp"
+            android:background="@drawable/usb_preview_bg"
+            android:padding="2dp"
+            android:scaleType="centerCrop" />
+
+        <TextView
+            android:id="@+id/previewTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 650"
+            android:shadowColor="#CC000000"
+            android:shadowRadius="6"
+            android:textColor="#FFFFFFFF"
+            android:textSize="16sp" />
     </LinearLayout>
 </FrameLayout>

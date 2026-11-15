@@ -97,7 +97,9 @@ public class UsbPlayerActivity extends Activity {
     private final Downmix downmix = new Downmix();
     private PlayerView view;
     private TextView badge, title, subtitle, clock, endsAt, elapsed, remaining, btnPlay;
-    private View top, bottom, buttons;
+    private View top, bottom, buttons, scrubThumb, scrubPreview;
+    private android.widget.ImageView previewImage;
+    private TextView previewTime;
     private ProgressBar timeline;
     private String episodeLine = "";
     private Overlay overlay = Overlay.HIDDEN;
@@ -229,11 +231,16 @@ public class UsbPlayerActivity extends Activity {
         public void onPlaybackStateChanged(int state) {
             if (state == Player.STATE_ENDED) done(true);
             else refreshOverlay();
+            if (state == Player.STATE_READY && !warmScheduled) {
+                warmScheduled = true;
+                handler.postDelayed(warmPreviews, WARM_AFTER_MS);
+            }
         }
 
         @Override
         public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
             refreshOverlay();
+            if (scrubbing) return;   // held for a scrub: no pause screen
             handler.removeCallbacks(showPausePanel);
             if (!playWhenReady) {
                 show(Overlay.FULL);   // paused: keep the controls up
@@ -634,6 +641,214 @@ public class UsbPlayerActivity extends Activity {
                 }));
     }
 
+    // ---- scrubbing ------------------------------------------------------------------------------
+    // Tap ◀ ▶: 10 s at once. Hold: the film pauses and a marker runs along the timeline, faster the longer you
+    // hold (20 s a second at first, up to 6 minutes a second), with a picture from that point above it. Let go
+    // and it jumps there a moment later; ◀ ▶ taps meanwhile nudge it 10 s, OK jumps now, Back stays put. With the
+    // controls up the same works on the timeline (▲ from the buttons selects it, ▼ goes back).
+
+    private static final long SCRUB_COMMIT_MS = 1400, PREVIEW_BUCKET_MS = 10_000;
+    private boolean scrubbing, scrubWasPlaying, tapPending, previewsFailed;
+    private long scrubPos, scrubFrom, holdStart, lastRepeat;
+
+    /** ◀ ▶ while the controls are hidden or the timeline is selected. */
+    private boolean scrubKey(KeyEvent e, boolean forward) {
+        long sign = forward ? 1 : -1;
+        if (e.getAction() == KeyEvent.ACTION_DOWN) {
+            if (e.getRepeatCount() == 0) {
+                handler.removeCallbacks(commitScrub);
+                holdStart = lastRepeat = e.getEventTime();
+                if (scrubbing) moveScrub(sign * 10_000);   // a tap while a jump is pending nudges it
+                else tapPending = true;
+            } else {
+                if (!scrubbing) beginScrub();
+                tapPending = false;
+                long now = e.getEventTime();
+                // Remotes repeat a held key about every 50 ms; event times can be stale or uneven, so never
+                // trust a gap longer than that (one long gap once jumped 13 minutes).
+                if (holdStart <= 0 || now - holdStart > 120_000 || now < holdStart) holdStart = now;
+                long dt = now - lastRepeat;
+                if (dt <= 0 || dt > 120) dt = 50;
+                long held = now - holdStart;
+                float speed = held < 1500 ? 20 : held < 3000 ? 60 : held < 5000 ? 180 : 360;   // film ms per ms
+                moveScrub(sign * (long) (dt * speed));
+                lastRepeat = now;
+            }
+        } else if (e.getAction() == KeyEvent.ACTION_UP) {
+            if (tapPending && !scrubbing) skip(sign * 10_000);
+            tapPending = false;
+            if (scrubbing) {
+                handler.removeCallbacks(commitScrub);
+                handler.postDelayed(commitScrub, SCRUB_COMMIT_MS);
+            }
+        }
+        return true;
+    }
+
+    private void beginScrub() {
+        scrubbing = true;
+        scrubFrom = scrubPos = player.getCurrentPosition();
+        scrubWasPlaying = player.getPlayWhenReady();
+        player.pause();
+        if (overlay != Overlay.FULL) show(Overlay.SEEK);
+        handler.removeCallbacks(hider);
+        scrubThumb.setVisibility(View.VISIBLE);
+        scrubPreview.setVisibility(View.VISIBLE);
+        previewImage.setVisibility(previewsFailed ? View.GONE : View.VISIBLE);
+        previewImage.setImageDrawable(null);
+        bottom.post(this::placeScrub);
+    }
+
+    private void moveScrub(long ms) {
+        long dur = player.getDuration();
+        long max = dur != C.TIME_UNSET && dur > 0 ? dur - 1000 : Long.MAX_VALUE;
+        scrubPos = Math.max(0, Math.min(max, scrubPos + ms));
+        placeScrub();
+        refreshOverlay();
+        requestPreview(scrubPos);
+    }
+
+    private final Runnable commitScrub = () -> endScrub(true);
+
+    private void endScrub(boolean jump) {
+        if (!scrubbing) return;
+        handler.removeCallbacks(commitScrub);
+        scrubbing = false;
+        if (jump) player.seekTo(scrubPos);
+        scrubPreview.setVisibility(View.GONE);
+        if (!timeline.isFocused()) scrubThumb.setVisibility(View.GONE);
+        if (scrubWasPlaying) player.play();
+        refreshOverlay();
+        placeScrub();
+        scheduleHide();
+    }
+
+    /** Puts the marker on the timeline and the preview above it, kept on screen. */
+    private void placeScrub() {
+        if (player == null || bottom.getVisibility() != View.VISIBLE || timeline.getWidth() == 0) return;
+        long dur = player.getDuration();
+        if (dur == C.TIME_UNSET || dur <= 0) return;
+        long at = scrubbing ? scrubPos : player.getCurrentPosition();
+        int[] tl = new int[2];
+        timeline.getLocationInWindow(tl);
+        float x = tl[0] + timeline.getWidth() * (float) Math.min(1.0, at / (double) dur);
+        float cy = tl[1] + timeline.getHeight() / 2f;
+        scrubThumb.setTranslationX(x - scrubThumb.getWidth() / 2f);
+        scrubThumb.setTranslationY(cy - scrubThumb.getHeight() / 2f);
+        if (!scrubbing) return;
+        long delta = scrubPos - scrubFrom;
+        previewTime.setText(UsbLibrary.clock(scrubPos) + "   " + (delta >= 0 ? "+" : "−") + UsbLibrary.clock(Math.abs(delta)));
+        int w = scrubPreview.getWidth(), h = scrubPreview.getHeight();
+        if (w == 0) {
+            scrubPreview.post(this::placeScrub);
+            return;
+        }
+        int edge = dp(24);
+        View root = (View) scrubPreview.getParent();
+        scrubPreview.setTranslationX(Math.max(edge, Math.min(root.getWidth() - w - edge, x - w / 2f)));
+        scrubPreview.setTranslationY(tl[1] - h - dp(16));
+    }
+
+    // Preview pictures: the nearest keyframe (fast to decode) of each 10 s, read on one background thread from
+    // the file itself, only the latest wanted one, while scrubbing. Kept for the session (about 6 MB at most).
+    private final java.util.concurrent.ExecutorService frameThread = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final java.util.concurrent.atomic.AtomicLong wantedFrame = new java.util.concurrent.atomic.AtomicLong(-1);
+    private final java.util.concurrent.atomic.AtomicBoolean frameWorking = new java.util.concurrent.atomic.AtomicBoolean();
+    private android.media.MediaMetadataRetriever retriever;   // frame thread only
+    private final android.util.LruCache<Long, android.graphics.Bitmap> frames =
+            new android.util.LruCache<Long, android.graphics.Bitmap>(6 * 1024 * 1024) {
+                @Override
+                protected int sizeOf(Long key, android.graphics.Bitmap b) {
+                    return b.getByteCount();
+                }
+            };
+
+    private void requestPreview(long pos) {
+        if (previewsFailed) return;
+        long key = pos / PREVIEW_BUCKET_MS * PREVIEW_BUCKET_MS;
+        android.graphics.Bitmap b = frames.get(key);
+        if (b != null) {
+            previewImage.setImageBitmap(b);
+            previewImage.setAlpha(1f);
+            return;
+        }
+        previewImage.setAlpha(0.45f);   // the last picture, dimmed, until this one is read
+        wantedFrame.set(key);
+        if (frameWorking.compareAndSet(false, true)) frameThread.execute(frameJob);
+    }
+
+    // Opening a big file for pictures the first time takes the TV ~12 s (it indexes the whole file); later
+    // pictures take ~0.4 s. So open it once in the background, a little after the film starts, at low priority.
+    private static final long WARM_AFTER_MS = 15_000;
+    private boolean warmScheduled;
+
+    private final Runnable warmPreviews = () -> {
+        if (player == null || previewsFailed) return;
+        final long at = player.getCurrentPosition() / PREVIEW_BUCKET_MS * PREVIEW_BUCKET_MS;
+        final int dropped = droppedFrames();
+        frameThread.execute(() -> {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
+            android.graphics.Bitmap b = readFrame(at);
+            handler.post(() -> {
+                if (b != null) frames.put(at, b);
+                Log.i(TAG, "previews ready; frames dropped meanwhile: " + (droppedFrames() - dropped));
+            });
+        });
+    };
+
+    private int droppedFrames() {
+        androidx.media3.exoplayer.DecoderCounters c = player != null ? player.getVideoDecoderCounters() : null;
+        return c != null ? c.droppedBufferCount : 0;
+    }
+
+    private final Runnable frameJob = () -> {
+        do {
+            for (long key; (key = wantedFrame.getAndSet(-1)) >= 0; ) {
+                android.graphics.Bitmap b = readFrame(key);
+                final long k = key;
+                handler.post(() -> {
+                    if (b != null) frames.put(k, b);
+                    if (scrubbing && scrubPos / PREVIEW_BUCKET_MS * PREVIEW_BUCKET_MS == k && b != null) {
+                        previewImage.setImageBitmap(b);
+                        previewImage.setAlpha(1f);
+                    }
+                });
+            }
+            frameWorking.set(false);
+        } while (wantedFrame.get() >= 0 && frameWorking.compareAndSet(false, true));
+    };
+
+    /** Frame thread. Null when the file or the TV's decoder won't give one; after a hard failure, stop asking. */
+    private android.graphics.Bitmap readFrame(long ms) {
+        try {
+            if (retriever == null) {
+                retriever = new android.media.MediaMetadataRetriever();
+                retriever.setDataSource(video.path);
+            }
+            int w = dp(256), h = dp(144);
+            long t0 = android.os.SystemClock.uptimeMillis();
+            try {
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                android.media.MediaMetadataRetriever.BitmapParams p = new android.media.MediaMetadataRetriever.BitmapParams();
+                p.setPreferredConfig(android.graphics.Bitmap.Config.RGB_565);
+                return retriever.getScaledFrameAtTime(ms * 1000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, w, h, p);
+            }
+            return retriever.getScaledFrameAtTime(ms * 1000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, w, h);
+            } finally {
+                Log.i(TAG, "preview at " + ms / 1000 + " s took " + (android.os.SystemClock.uptimeMillis() - t0) + " ms");
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "no preview at " + ms, e);
+            if (retriever == null || e instanceof IllegalArgumentException) {
+                handler.post(() -> {
+                    previewsFailed = true;
+                    previewImage.setVisibility(View.GONE);
+                });
+            }
+            return null;
+        }
+    }
+
     // ---- remote -----------------------------------------------------------------------------------
 
     // ---- the overlay ------------------------------------------------------------------------------
@@ -659,6 +874,17 @@ public class UsbPlayerActivity extends Activity {
         remaining = findViewById(R.id.remaining);
         timeline = findViewById(R.id.timeline);
         btnPlay = findViewById(R.id.btnPlay);
+        scrubThumb = findViewById(R.id.scrubThumb);
+        scrubPreview = findViewById(R.id.scrubPreview);
+        previewImage = findViewById(R.id.previewImage);
+        previewTime = findViewById(R.id.previewTime);
+        previewImage.setClipToOutline(true);
+        // The timeline, selected with ▲: taller, with its marker
+        timeline.setOnFocusChangeListener((v, has) -> {
+            v.animate().scaleY(has ? 1.8f : 1f).setDuration(120).start();
+            scrubThumb.setVisibility(has || scrubbing ? View.VISIBLE : View.GONE);
+            if (has) bottom.post(this::placeScrub);
+        });
         pauseDim = findViewById(R.id.pauseDim);
         pauseInfo = findViewById(R.id.pauseInfo);
         pauseTitle = findViewById(R.id.pauseTitle);
@@ -699,6 +925,7 @@ public class UsbPlayerActivity extends Activity {
         top.setVisibility(o == Overlay.TITLE || o == Overlay.FULL ? View.VISIBLE : View.GONE);
         bottom.setVisibility(o == Overlay.SEEK || o == Overlay.FULL ? View.VISIBLE : View.GONE);
         buttons.setVisibility(o == Overlay.FULL ? View.VISIBLE : View.GONE);
+        timeline.setFocusable(o == Overlay.FULL);   // selectable (▲) only with the full controls
         SubtitleView subs = view.getSubtitleView();   // lines sit above the controls while they show
         if (subs != null) subs.setBottomPaddingFraction(o == Overlay.FULL ? 0.27f : o == Overlay.SEEK ? 0.16f
                 : SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION);
@@ -710,7 +937,7 @@ public class UsbPlayerActivity extends Activity {
 
     private void scheduleHide() {
         handler.removeCallbacks(hider);
-        if (overlay == Overlay.HIDDEN || player == null) return;
+        if (overlay == Overlay.HIDDEN || player == null || scrubbing) return;
         if (overlay == Overlay.FULL && (dialog != null || !player.getPlayWhenReady())) return;
         long delay = overlay == Overlay.FULL ? HIDE_FULL_MS : overlay == Overlay.TITLE ? HIDE_TITLE_MS : HIDE_SEEK_MS;
         handler.postDelayed(hider, delay);
@@ -728,8 +955,9 @@ public class UsbPlayerActivity extends Activity {
 
     private void refreshOverlay() {
         if (player == null || top == null) return;
-        long pos = player.getCurrentPosition(), dur = player.getDuration();
+        long pos = scrubbing ? scrubPos : player.getCurrentPosition(), dur = player.getDuration();
         boolean known = dur != C.TIME_UNSET && dur > 0;
+        if (!scrubbing && timeline.isFocused()) placeScrub();
         elapsed.setText(UsbLibrary.clock(pos));
         remaining.setText(known ? "-" + UsbLibrary.clock(Math.max(0, dur - pos)) : "");
         timeline.setProgress(known ? (int) (pos * 10000 / dur) : 0);
@@ -1013,8 +1241,8 @@ public class UsbPlayerActivity extends Activity {
     }
 
     // ---- remote -----------------------------------------------------------------------------------
-    // Overlay hidden: OK shows it (never pauses), ◀ ▶ skip 10 s (held: 30 s steps), ▲ ▼ boost, Back stops.
-    // Overlay up: ◀ ▶ move between the buttons, OK presses one, Back hides it. Any time: ≡ the Sound menu,
+    // Overlay hidden: OK shows it (never pauses), ◀ ▶ skip 10 s (held: scrub, see "scrubbing"), ▲ ▼ boost,
+    // Back stops. Overlay up: ◀ ▶ move between the buttons, OK presses one, ▲ selects the timeline, Back hides it. Any time: ≡ the Sound menu,
     // ⏯ ⏪ ⏩ on the remote play/pause and skip 30 s.
 
     @Override
@@ -1023,6 +1251,16 @@ public class UsbPlayerActivity extends Activity {
         int code = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         boolean first = down && e.getRepeatCount() == 0;
+        if (scrubbing) {   // OK jumps now, Back stays where you were
+            if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                if (first) endScrub(true);
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_BACK) {
+                if (!down) endScrub(false);
+                return true;
+            }
+        }
         switch (code) {
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                 if (first) togglePlay();
@@ -1050,7 +1288,18 @@ public class UsbPlayerActivity extends Activity {
                 return true;
             }
             if (down) scheduleHide();   // any press keeps it up
-            if (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN) return true;   // one row
+            boolean onTimeline = timeline.isFocused();
+            if (code == KeyEvent.KEYCODE_DPAD_UP) {
+                if (first && !onTimeline) timeline.requestFocus();
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (first && onTimeline) btnPlay.requestFocus();
+                return true;
+            }
+            if (onTimeline && (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                return scrubKey(e, code == KeyEvent.KEYCODE_DPAD_RIGHT);
+            }
             return super.dispatchKeyEvent(e);
         }
         switch (code) {
@@ -1061,12 +1310,7 @@ public class UsbPlayerActivity extends Activity {
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                if (down) {
-                    int r = e.getRepeatCount();
-                    long step = r == 0 ? 10_000 : r % 3 == 0 ? 30_000 : 0;   // held: 30 s every few repeats
-                    if (step > 0) skip(code == KeyEvent.KEYCODE_DPAD_RIGHT ? step : -step);
-                }
-                return true;
+                return scrubKey(e, code == KeyEvent.KEYCODE_DPAD_RIGHT);
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (first) setBoostStep(boostStep() + 1);
                 return true;
@@ -1140,6 +1384,15 @@ public class UsbPlayerActivity extends Activity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
+        frameThread.execute(() -> {
+            if (retriever != null) {
+                try {
+                    retriever.release();
+                } catch (Exception ignored) {
+                }
+            }
+        });
+        frameThread.shutdown();
         if (player != null) {
             getSystemService(AudioManager.class).unregisterAudioDeviceCallback(outputs);
             releaseEffects();
