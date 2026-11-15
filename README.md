@@ -94,6 +94,14 @@ Three optional screens, each a tile on the home screen.
 - **Live News** (red button): YouTube news channels you add on the TV by pasting a link or a
   handle. Opening one lists every stream it has live right now.
 
+| USB screen | Pause screen |
+|---|---|
+| ![USB screen: The Garden of Words with its story and cast](docs/usb-player/usb-screen.jpg) | ![Pause screen: story, director and cast](docs/usb-player/pause-screen.jpg) |
+| **Player controls** (with the English subtitle file beside the video) | **Subtitles menu** |
+| ![Player controls: title, clock, timeline and buttons](docs/usb-player/player-controls.jpg) | ![Subtitles menu naming every track](docs/usb-player/subtitles-menu.jpg) |
+
+Screenshots from a Fire TV Edition 4K TV; the picture is black because Android doesn't capture video in screenshots.
+
 Trending and the USB screen's posters need a free [TMDB](https://www.themoviedb.org/settings/api)
 **API Read Access Token**. Add it to `launcher/local.properties`:
 
