@@ -271,14 +271,17 @@ public class UsbPlayerActivity extends Activity {
         Tracks.Group bestGroup = null;
         int bestIndex = -1, bestScore = Integer.MIN_VALUE;
         boolean anyAudio = false;
-        String savedAudio = saved.getString("a2:" + video.path, null);
+        String savedAudio = saved.getString("a3:" + video.path, null);
         for (Tracks.Group g : tracks.getGroups()) {
             if (g.getType() != C.TRACK_TYPE_AUDIO) continue;
             anyAudio = true;
             for (int i = 0; i < g.length; i++) {
-                if (!g.isTrackSupported(i)) continue;
+                // The TV's AC3 decoder reports 5.1 AC3 as "exceeds capabilities" yet decodes it fine, so such
+                // tracks still count, just below fully supported ones; only truly undecodable audio is skipped.
+                if (!g.isTrackSupported(i, true)) continue;
                 Format f = g.getTrackFormat(i);
                 int score = key(f).equals(savedAudio) ? 1000 : audioScore(f);
+                if (!g.isTrackSupported(i)) score -= 10;
                 if (score > bestScore) {
                     bestScore = score;
                     bestGroup = g;
@@ -287,6 +290,7 @@ public class UsbPlayerActivity extends Activity {
             }
         }
         if (anyAudio && bestGroup == null) {   // only audio the TV can't decode (TrueHD, …)
+            Log.w(TAG, "no playable audio in " + video.path + ", handing to Just Player");
             fallBack();
             return;
         }
@@ -298,7 +302,7 @@ public class UsbPlayerActivity extends Activity {
         }
 
         // Subtitles
-        String savedText = saved.getString("t2:" + video.path, null);
+        String savedText = saved.getString("t3:" + video.path, null);
         Tracks.Group textGroup = null;
         int textIndex = -1, textScore = 0;
         for (Tracks.Group g : tracks.getGroups()) {
@@ -393,10 +397,10 @@ public class UsbPlayerActivity extends Activity {
             }
         }
         SharedPreferences.Editor e = getSharedPreferences(TRACK_PREFS, MODE_PRIVATE).edit();
-        if (audio != null && !audio.equals(autoAudio)) e.putString("a2:" + video.path, audio);
-        else if (audio != null) e.remove("a2:" + video.path);
-        if (!text.equals(autoText)) e.putString("t2:" + video.path, text);
-        else e.remove("t2:" + video.path);
+        if (audio != null && !audio.equals(autoAudio)) e.putString("a3:" + video.path, audio);
+        else if (audio != null) e.remove("a3:" + video.path);
+        if (!text.equals(autoText)) e.putString("t3:" + video.path, text);
+        else e.remove("t3:" + video.path);
         e.apply();
     }
 
@@ -1157,7 +1161,7 @@ public class UsbPlayerActivity extends Activity {
         for (Tracks.Group g : player.getCurrentTracks().getGroups()) {
             if (g.getType() != type) continue;
             for (int i = 0; i < g.length; i++) {
-                if (!g.isTrackSupported(i)) continue;
+                if (!g.isTrackSupported(i, type == C.TRACK_TYPE_AUDIO)) continue;   // 5.1 AC3: see chooseTracks
                 if (g.isTrackSelected(i)) checked = labels.size();
                 labels.add(trackLabel(g.getTrackFormat(i), type));
                 final Tracks.Group group = g;
@@ -1375,8 +1379,11 @@ public class UsbPlayerActivity extends Activity {
         super.onStop();
         // Home during a film: keep the place (the USB tile reopens the list, not the paused film)
         if (player != null) {
-            if (!fellBack) savePosition(false);
-            saveTracks();
+            // Handed to Just Player: the tracks showing are the file's defaults, not a choice of yours
+            if (!fellBack) {
+                savePosition(false);
+                saveTracks();
+            }
             player.pause();
         }
     }
