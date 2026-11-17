@@ -13,6 +13,8 @@ android {
 
     defaultConfig {
         resValue 'string', 'user_name', localProps.getProperty('tvhome.userName', '')
+        // TMDB API read access token for the Trending screen: tvhome.tmdbToken=... in launcher/local.properties.
+        resValue 'string', 'tmdb_token', localProps.getProperty('tvhome.tmdbToken', '')
         applicationId 'com.gathin.tvhome'
         minSdk 26
         targetSdk 29
@@ -21,9 +23,23 @@ android {
     }
 
     buildTypes {
+        // Release: shrunk and optimised by R8 and not debuggable, so ART fully compiles it (faster, less memory).
+        // Signed with this computer's debug key, the same key as the debug builds, so it installs over them with
+        // adb install -r and keeps the accessibility service, device admin and granted permissions.
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            signingConfig signingConfigs.debug
+            crunchPngs false   // aapt2's PNG crunch rejects banner.png and ic_launcher.png; debug builds skip it too
         }
+    }
+
+    // Sideloaded, never on Google Play: its target-API rule doesn't apply.
+    lint {
+        disable 'ExpiredTargetSdkVersion'
+        // media3 marks parts of its API "unstable" (may change between versions); the version is pinned above.
+        disable 'UnsafeOptInUsageError'
     }
 
     compileOptions {
@@ -35,4 +51,7 @@ android {
 dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
+    // USB player: ExoPlayer (the engine inside Just Player) and its standard controls/subtitle view.
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+    implementation 'androidx.media3:media3-ui:1.4.1'
 }

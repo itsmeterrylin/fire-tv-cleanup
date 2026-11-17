@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB: the focused film's still fading in at the top right, its name, details and story at the top left,
+     rows of posters below (Continue watching, Movies, Series). TMDB credit bottom right. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF0B0B10">
+
+    <ImageView
+        android:id="@+id/backdrop"
+        android:layout_width="560dp"
+        android:layout_height="315dp"
+        android:layout_gravity="top|end"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:importantForAccessibility="no" />
+
+    <!-- Fades the still into the background on its left and bottom edges. -->
+    <View
+        android:layout_width="560dp"
+        android:layout_height="315dp"
+        android:layout_gravity="top|end"
+        android:background="@drawable/usb_backdrop_fade_left" />
+
+    <View
+        android:layout_width="560dp"
+        android:layout_height="315dp"
+        android:layout_gravity="top|end"
+        android:background="@drawable/usb_backdrop_fade_bottom" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="56dp"
+        android:paddingEnd="56dp"
+        android:paddingTop="26dp"
+        android:paddingBottom="34dp">
+
+        <TextView
+            android:id="@+id/heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/usb_heading"
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp"
+            android:letterSpacing="0.12"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 600" />
+
+        <TextView
+            android:id="@+id/heroTitle"
+            android:layout_width="600dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#FFFFFFFF"
+            android:textSize="28sp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 700"
+            android:letterSpacing="-0.01" />
+
+        <TextView
+            android:id="@+id/heroMeta"
+            android:layout_width="600dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#B3FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 500" />
+
+        <!-- "Resume from 1:02:13 · 45% watched", or the file name for files TMDB doesn't know. -->
+        <TextView
+            android:id="@+id/heroStatus"
+            android:layout_width="600dp"
+            android:layout_height="26dp"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:ellipsize="middle"
+            android:textColor="#FF7FD6F0"
+            android:textSize="14sp"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 600" />
+
+        <TextView
+            android:id="@+id/heroOverview"
+            android:layout_width="600dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:minLines="2"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:lineSpacingMultiplier="1.15"
+            android:textColor="#CCFFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/inter" />
+
+        <!-- Cast: round TMDB photos with names, filled in code (UsbActivity.showCast). Keeps its height when empty
+             so the rows below don't jump. -->
+        <LinearLayout
+            android:id="@+id/heroCast"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal" />
+
+        <ScrollView
+            android:id="@+id/scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="10dp"
+            android:scrollbars="none"
+            android:overScrollMode="never"
+            android:requiresFadingEdge="vertical"
+            android:fadingEdgeLength="20dp">
+
+            <LinearLayout
+                android:id="@+id/rows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:clipChildren="false"
+                android:clipToPadding="false" />
+        </ScrollView>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="56dp"
+        android:layout_marginBottom="12dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="24dp"
+            android:text="@string/usb_hint"
+            android:textColor="#80FFFFFF"
+            android:textSize="10sp"
+            android:fontFamily="@font/inter" />
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="11dp"
+            android:adjustViewBounds="true"
+            android:src="@drawable/tmdb_logo"
+            android:contentDescription="TMDB" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/usb_tmdb_notice"
+            android:textColor="#80FFFFFF"
+            android:textSize="10sp"
+            android:fontFamily="@font/inter" />
+    </LinearLayout>
+</FrameLayout>

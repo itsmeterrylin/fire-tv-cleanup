@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The marker on the timeline while scrubbing, or while the timeline is selected. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FFFFFFFF" />
+    <stroke android:width="2dp" android:color="#FF3FC1E8" />
+</shape>

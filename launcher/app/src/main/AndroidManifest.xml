@@ -6,6 +6,13 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Live News only: looks up a YouTube channel's name, logo and current live stream. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Headphone boost: a loudness effect on the audio of players that announce it (Just Player, VLC). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- USB screen: lists the videos on a USB drive (the media index) and the subtitles beside them; granted over
+         adb (pm grant). Read only. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <!-- Lets the launcher turn its Home redirect on and off from the TV; granted over adb (pm grant). -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
 
@@ -14,7 +21,8 @@
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/banner"
         android:theme="@style/Theme.TvHome"
-        android:allowBackup="false">
+        android:allowBackup="false"
+        android:requestLegacyExternalStorage="true">
 
         <activity
             android:name=".MainActivity"
@@ -30,9 +38,72 @@
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!-- Listed in Amazon's app row too, as the way back from the Appstore (which lives in Amazon's home). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
         </activity>
 
-        <!-- Screensaver: the Manhattan photos with a slow zoom and a clock. Selected over adb, see the class. -->
+        <!-- Trending (movies and series from TMDB): shown as its own tile on the home screen and in Amazon's app
+             row. Runs in its own process, which ends when you leave the screen (noHistory closes it), so nothing it
+             loaded stays in memory: in the launcher's process its poster textures lingered (113 vs 100 MB). -->
+        <activity
+            android:name=".TrendingActivity"
+            android:process=":trending"
+            android:exported="true"
+            android:label="@string/trending_label"
+            android:banner="@drawable/banner_trending"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- USB (films and series on a USB drive, played in Just Player): a tile on the home screen. Its own process,
+             ended when you leave (see the class), and its own task so pressing Home during a film keeps the film
+             there instead of closing it with the home screen's task. Not noHistory: it waits for Just Player's
+             answer (where you stopped). -->
+        <activity
+            android:name=".UsbActivity"
+            android:process=":usb"
+            android:exported="true"
+            android:label="@string/usb_label"
+            android:banner="@drawable/banner_usb"
+            android:taskAffinity="com.gathin.tvhome.usb"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The USB screen's player: original-language audio, English subtitles, boost and voice boost. Same
+             process and task as the USB screen; not exported. -->
+        <activity
+            android:name=".UsbPlayerActivity"
+            android:process=":usb"
+            android:exported="false"
+            android:theme="@style/Theme.UsbPlayer"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode"
+            android:screenOrientation="landscape" />
+
+        <!-- Read-only links to USB subtitle files (and unindexed videos) for Just Player; not exported. -->
+        <provider
+            android:name=".UsbFilesProvider"
+            android:authorities="com.gathin.tvhome.usbfiles"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <!-- Screensaver: the home screen photos with a slow zoom and a clock. Selected over adb, see the class. -->
         <service
             android:name=".PhotoDream"
             android:exported="true"
@@ -43,6 +114,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
+
+        <!-- "Force lock" only: puts the TV to standby from the Tools menu and the sleep timer. -->
+        <receiver
+            android:name=".AdminReceiver"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Opens this launcher whenever Amazon's home screen comes up. Enabled over adb, see the class. -->
         <service

@@ -21,6 +21,15 @@
         <item>com.amazon.smarthomemapviewapp</item>  <!-- Alexa Smart Home -->
         <item>com.amazon.spiderpork</item>   <!-- Luna -->
         <item>com.amazon.bueller.music</item>
+        <item>com.vewd.core.fvpplayer</item>   <!-- broadcast-TV helpers, not apps -->
+        <item>com.vewd.core.opapp</item>
+        <item>com.vewd.core.tvapp</item>
+    </string-array>
+
+    <!-- Phone-style apps (no TV launcher entry) to list anyway: Amazon Appstore and the USB media player. -->
+    <string-array name="extra_apps">
+        <item>com.amazon.venezia</item>
+        <item>com.amazon.tv.localgallery</item>
     </string-array>
 
     <!-- The TV's Live TV / tuner app, offered at the end of the Inputs menu. Leave empty to omit. -->

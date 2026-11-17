@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -22,17 +23,22 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.InputType;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.WindowManager;
 import android.view.animation.AnimationUtils;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LayoutAnimationController;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -47,6 +53,7 @@ import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -79,13 +86,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean heroShown;
     private TextView greeting;
     private ImageView bgPhoto;
-    private int bgRes;
+    private ImageView bgBand;
+    private TextView wallCaption;
+    private String bgKey;   // which picture bgPhoto shows: a file path or "res:<id>"; null when let go in onStop
+    private DockDecoration dockDecoration;
     private TextView btnWifi;
     private SpringAnimation springX, springY;
     private float glassTargetX, glassTargetY;
     private boolean glassShown;
     private int lastFocused = 0;
     private float density;
+    private boolean resumed;   // reopen Live News after a background look-up only while the home screen is up
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private static final int COLOR_WARN = 0xFFFFB340;   // connected, no internet
@@ -133,6 +144,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 ambientGlow.setGradientRadius((r - l) * 0.62f));
         greeting = findViewById(R.id.greeting);
         bgPhoto = findViewById(R.id.bgPhoto);
+        bgBand = findViewById(R.id.bgBand);
+        wallCaption = findViewById(R.id.wallCaption);
         btnWifi = findViewById(R.id.btnWifi);
 
         grid = findViewById(R.id.grid);
@@ -152,13 +165,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setLayoutAnimation(new LayoutAnimationController(
                 AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
         adapter = new AppAdapter(this, this, COLUMNS);
-        grid.addItemDecoration(new DockDecoration(adapter, COLUMNS, density));
+        dockDecoration = new DockDecoration(adapter, COLUMNS, density);
+        grid.addItemDecoration(dockDecoration);
         grid.setAdapter(adapter);
 
         // tvOS layout: push the dock row to the bottom of the screen; the grid hides below until you press Down.
         grid.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             int h = b - t;
-            int dockRow = (int) ((101 + 6 + 12) * density);   // item height plus DockDecoration offsets
+            int dockRow = (int) ((125 + 6 + 12) * density);   // item height plus DockDecoration offsets
             int want = Math.max(0, h - dockRow + (int) (8 * density));
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
@@ -222,6 +236,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         glassShown = false;
         glass.setAlpha(0f);
         heroShown = false;
@@ -248,9 +263,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
+        resumed = false;
         handler.removeCallbacks(minuteTick);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         if (cm != null) cm.unregisterNetworkCallback(networkCallback);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Another app (or the screensaver) is in front: let go of the photo and its band, about 8.5 MB, so that
+        // app gets the memory. onResume loads them again before the home screen is drawn.
+        bgPhoto.animate().cancel();
+        bgBand.animate().cancel();
+        bgPhoto.setImageDrawable(null);
+        bgBand.setImageDrawable(null);
+        if (frostFade != null) frostFade.cancel();
+        dockDecoration.setFrost(null);
+        bgPhoto.setAlpha(1f);
+        bgBand.setAlpha(1f);
+        bgKey = null;
     }
 
     @Override
@@ -272,17 +304,28 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Rect r = new Rect(0, 0, card.getWidth(), card.getHeight());
         root.offsetDescendantRectToMyCoords(card, r);
         float pad = 6f * density;        // matches GlassView's glow inset
-        float w = card.getWidth() * AppAdapter.FOCUS_SCALE + 2 * pad;
-        float h = card.getHeight() * AppAdapter.FOCUS_SCALE + 2 * pad;
-        float x = r.exactCenterX() - w / 2f;
-        float y = r.exactCenterY() - h / 2f;
+        moveGlass(card, r.exactCenterX(), r.exactCenterY(), AppAdapter.FOCUS_SCALE);
+        View item = (View) card.getParent();
+        hideHero();
+        // Scroll just enough so the whole glass (not only the tile) is visible.
+        Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
+        grid.requestChildRectangleOnScreen(item, want, false);
+    }
+
+    /** Sizes the glass to the card at the given scale and springs it to centre on (cx, cy), root coordinates. */
+    private void moveGlass(View card, float cx, float cy, float scale) {
+        float pad = 6f * density;        // matches GlassView's glow inset
+        float w = card.getWidth() * scale + 2 * pad;
+        float h = card.getHeight() * scale + 2 * pad;
+        float x = cx - w / 2f;
+        float y = cy - h / 2f;
 
         ViewGroup.LayoutParams lp = glass.getLayoutParams();
         if (lp.width != (int) w || lp.height != (int) h) {
             lp.width = (int) w;
             lp.height = (int) h;
             glass.setLayoutParams(lp);
-            glass.setRadius(Math.min(card.getWidth(), card.getHeight()) * AppAdapter.CORNER_RATIO * AppAdapter.FOCUS_SCALE + pad);
+            glass.setRadius(Math.min(card.getWidth(), card.getHeight()) * AppAdapter.CORNER_RATIO * scale + pad);
         }
         glassTargetX = x;
         glassTargetY = y;
@@ -297,24 +340,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             springX.animateToFinalPosition(x);
             springY.animateToFinalPosition(y);
         }
-        View item = (View) card.getParent();
-        hideHero();
-        // Scroll just enough so the whole glass (not only the tile) is visible.
-        Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
-        grid.requestChildRectangleOnScreen(item, want, false);
     }
 
     // ---- top shelf -------------------------------------------------------------------------------
 
     private void onDockFocused(int position, View card) {
-        hideGlass();
         View item = (View) card.getParent();
         int decoratedTop = item.getTop() - (int) (6 * density);
         int dy = decoratedTop - grid.getPaddingTop();
-        if (Math.abs(dy) > 1) grid.smoothScrollBy(0, dy);
         magnifyDock(position);
         Rect r = new Rect(0, 0, card.getWidth(), card.getHeight());
         root.offsetDescendantRectToMyCoords(card, r);
+        // The same glass as the grid, around the magnified icon (scaled from its bottom centre, then lifted).
+        // Placed before the scroll starts: the grid's scroll listener carries it along by dy.
+        float magnifiedH = card.getHeight() * DOCK_MAGNIFY;
+        moveGlass(card, r.exactCenterX(), r.bottom - DOCK_LIFT_DP * density - magnifiedH / 2f, DOCK_MAGNIFY);
+        if (Math.abs(dy) > 1) grid.smoothScrollBy(0, dy);
         r.offset(0, -dy);
         showHero(position, r);
     }
@@ -347,9 +388,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showHero(int position, Rect card) {
         heroName.setText(adapter.labelAt(position));
         heroName.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        // Above the magnified icons (the same height for every dock icon), lined up with the shelf's first icon.
         float iconTop = card.bottom - card.height() * DOCK_MAGNIFY - DOCK_LIFT_DP * density;
-        heroName.setX(card.exactCenterX() - heroName.getMeasuredWidth() / 2f);
-        heroName.setY(iconTop - 8 * density - heroName.getMeasuredHeight());
+        Rect dock = new Rect();
+        float titleX = card.left;
+        if (dockDecoration.dockCards(grid, dock)) {
+            root.offsetDescendantRectToMyCoords(grid, dock);
+            titleX = dock.left;
+        }
+        heroName.setX(titleX);
+        heroName.setY(iconTop - 10 * density - heroName.getMeasuredHeight());
         dockDot.setX(card.exactCenterX() - dockDot.getWidth() / 2f);
         dockDot.setY(card.bottom + 3 * density);
         heroName.animate().alpha(1f).setDuration(160).start();
@@ -465,7 +513,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             });
         }
         addInputRow(rows, popup, R.drawable.ic_info, getString(R.string.app_info), -1, () ->
-                open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + pkg))));
+                open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + (pkg.startsWith(getPackageName()) ? getPackageName() : pkg)))));
 
         // Float the menu just above the tile, centred on it; the name tooltip steps aside while it's open.
         Rect r = new Rect(0, 0, card.getWidth(), card.getHeight());
@@ -502,8 +551,355 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 Toast.makeText(this, R.string.redirect_needs_permission, Toast.LENGTH_LONG).show();
             }
         });
+        addToolRows(rows, popup);
         popup.showAsDropDown(anchor, anchor.getWidth() - width, (int) (10 * density), Gravity.START);
         rows.getChildAt(0).requestFocus();
+    }
+
+    // ---- Tools: sleep timer, turn off, settings shortcuts, free memory and storage ------------------
+
+    /**
+     * Remote colour buttons on the home screen: blue (or INFO, where Fire OS lets it through) opens Tools (which
+     * has the sleep timer), red opens Live News, green opens the Inputs menu, yellow opens the USB player (Gallery).
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_PROG_BLUE || code == KeyEvent.KEYCODE_INFO || code == KeyEvent.KEYCODE_PROG_RED
+                || code == KeyEvent.KEYCODE_PROG_GREEN || code == KeyEvent.KEYCODE_PROG_YELLOW) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                if (code == KeyEvent.KEYCODE_PROG_RED) {
+                    showNews();
+                } else if (code == KeyEvent.KEYCODE_PROG_GREEN) {
+                    showInputs();
+                } else if (code == KeyEvent.KEYCODE_PROG_YELLOW) {
+                    Intent gallery = getPackageManager().getLaunchIntentForPackage("com.amazon.tv.localgallery");
+                    if (gallery != null) open(gallery);
+                    else Toast.makeText(this, "Not available on this TV", Toast.LENGTH_SHORT).show();
+                } else {
+                    showHomeScreenMenu(findViewById(R.id.btnSettings));
+                }
+            }
+            return true;
+        }
+        if (event.getAction() == KeyEvent.ACTION_DOWN) android.util.Log.d("TvHomeKeys", "key " + code);
+        return super.dispatchKeyEvent(event);
+    }
+
+    private static final int[] SLEEP_STEPS = {0, 30, 60, 90};
+
+    private void addToolRows(LinearLayout rows, PopupWindow popup) {
+        int left = HomeRedirectService.sleepMinutesLeft();
+        addToolRow(rows, popup, R.drawable.ic_settings, getString(R.string.sleep_timer),
+                left > 0 ? getString(R.string.minutes_left, left) : getString(R.string.off), () -> {
+            // Each press moves to the next step: off -> 30 -> 60 -> 90 -> off.
+            int next = 0;
+            for (int i = 0; i < SLEEP_STEPS.length; i++) {
+                if (left > 0 && left <= SLEEP_STEPS[i]) {
+                    next = SLEEP_STEPS[(i + 1) % SLEEP_STEPS.length];
+                    break;
+                }
+            }
+            if (left == 0) next = SLEEP_STEPS[1];
+            if (!HomeRedirectService.setSleepTimer(next)) {
+                Toast.makeText(this, R.string.tools_need_service, Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, next == 0 ? getString(R.string.sleep_off)
+                        : getString(R.string.sleep_set, next), Toast.LENGTH_SHORT).show();
+            }
+        });
+        // Each press: off -> +6 -> +10 -> +15 dB -> off. Headphones only, applied by the Home-redirect service.
+        int boost = HomeRedirectService.boostDb(this);
+        addToolRow(rows, popup, R.drawable.ic_settings, getString(R.string.headphone_boost),
+                boost > 0 ? getString(R.string.boost_value, boost) : getString(R.string.off), () -> {
+            int next = 0;
+            int[] steps = HomeRedirectService.BOOST_STEPS_DB;
+            for (int i = 0; i < steps.length; i++) {
+                if (steps[i] == boost) next = steps[(i + 1) % steps.length];
+            }
+            if (!HomeRedirectService.setBoost(this, next)) {
+                Toast.makeText(this, R.string.tools_need_service, Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, next == 0 ? getString(R.string.boost_off)
+                        : getString(R.string.boost_set, next), Toast.LENGTH_LONG).show();
+            }
+        });
+        addToolRow(rows, popup, R.drawable.ic_settings, getString(R.string.turn_off), null, () -> {
+            if (!HomeRedirectService.turnOffNow()) {
+                Toast.makeText(this, R.string.tools_need_service, Toast.LENGTH_LONG).show();
+            }
+        });
+        // Fire OS: Bluetooth lives under "Controllers & Bluetooth Devices". Its Display, Sound and Picture pages
+        // need Amazon-only permissions (LAUNCHER_SETTINGS, LAUNCH_INPUTS), so there are no shortcuts for them.
+        addToolRow(rows, popup, R.drawable.ic_settings, getString(R.string.restart_tv), null, () -> {
+            if (!HomeRedirectService.requestRestart(this)) {
+                Toast.makeText(this, R.string.tools_need_service, Toast.LENGTH_LONG).show();
+            }
+        });
+        // INPUT_DEVICES opens "Other Bluetooth Devices" (the paired headphones) inside Remotes & Bluetooth Devices;
+        // CONTROLLERS_SETTINGS, the fallback, stops on the voice remotes. CLEAR_TASK because Amazon's Settings
+        // otherwise comes back on whatever page it was last left on.
+        addToolRow(rows, popup, R.drawable.ic_settings, getString(R.string.bluetooth), null, () -> {
+            int flags = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK;
+            try {
+                startActivity(new Intent("com.amazon.device.settings.action.INPUT_DEVICES").addFlags(flags));
+            } catch (ActivityNotFoundException e) {
+                open(new Intent("android.settings.CONTROLLERS_SETTINGS").addFlags(flags));
+            }
+        });
+        addToolRow(rows, popup, R.drawable.ic_settings, getString(R.string.developer_options), null, () -> {
+            if (!HomeRedirectService.requestDevicePage(this, HomeRedirectService.DEVELOPER_OPTIONS)) {
+                open(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            }
+        });
+
+        android.app.ActivityManager.MemoryInfo mem = new android.app.ActivityManager.MemoryInfo();
+        android.app.ActivityManager am = getSystemService(android.app.ActivityManager.class);
+        if (am != null) am.getMemoryInfo(mem);
+        long storage = new android.os.StatFs(android.os.Environment.getDataDirectory().getPath()).getAvailableBytes();
+        addToolRow(rows, popup, R.drawable.ic_info, getString(R.string.free_memory),
+                getString(R.string.megabytes, mem.availMem / (1024 * 1024)), () -> { });
+        addToolRow(rows, popup, R.drawable.ic_info, getString(R.string.free_storage),
+                getString(R.string.gigabytes, storage / (1024 * 1024 * 1024.0)), () -> { });
+    }
+
+    // ---- Live News (red button) ------------------------------------------------------------------
+
+    /** Red button: the viewer's own list of YouTube channels (see News), with Add channel at the end. */
+    private void showNews() {
+        List<News.Channel> list = News.load(this);
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        PopupWindow popup = newsPopup(panel, 320);
+        addHeader(rows, getString(R.string.live_news));
+        for (int i = 0; i < list.size(); i++) {
+            final int index = i;
+            final News.Channel ch = list.get(i);
+            addInputRow(rows, popup, R.drawable.ic_livetv, ch.name, -1, () -> playNews(ch));
+            View row = rows.getChildAt(rows.getChildCount() - 1);
+            android.graphics.Bitmap logo = News.logo(this, ch);
+            if (logo != null) {
+                ImageView icon = row.findViewById(R.id.icon);
+                icon.setImageTintList(null);
+                icon.setImageBitmap(logo);
+            }
+            // Hold OK (or press Menu) on a channel: move, rename, delete.
+            row.setOnLongClickListener(v -> {
+                popup.dismiss();
+                showNewsMenu(index);
+                return true;
+            });
+            row.setOnKeyListener((v, keyCode, e) -> {
+                if (keyCode != KeyEvent.KEYCODE_MENU || e.getAction() != KeyEvent.ACTION_DOWN) return false;
+                popup.dismiss();
+                showNewsMenu(index);
+                return true;
+            });
+        }
+        if (!list.isEmpty()) addSeparator(rows);
+        addInputRow(rows, popup, R.drawable.ic_add, getString(R.string.add_channel), -1, this::askForChannel);
+        if (!list.isEmpty()) addHeader(rows, getString(R.string.news_edit_hint)).setSingleLine(false);
+        showNewsPopup(popup, panel);
+        rows.getChildAt(1).requestFocus();   // the first channel (row 0 is the heading)
+    }
+
+    private void showNewsMenu(int index) {
+        List<News.Channel> list = News.load(this);
+        if (index >= list.size()) return;
+        News.Channel ch = list.get(index);
+        Context app = getApplicationContext();
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        PopupWindow popup = newsPopup(panel, 320);
+        addHeader(rows, ch.name);
+        if (index > 0) addInputRow(rows, popup, R.drawable.ic_up, getString(R.string.move_up), -1, () -> {
+            Collections.swap(list, index, index - 1);
+            News.save(app, list);
+            showNews();
+        });
+        if (index < list.size() - 1) addInputRow(rows, popup, R.drawable.ic_down, getString(R.string.move_down), -1, () -> {
+            Collections.swap(list, index, index + 1);
+            News.save(app, list);
+            showNews();
+        });
+        addInputRow(rows, popup, R.drawable.ic_edit, getString(R.string.rename), -1, () ->
+                askForText(R.string.rename, null, ch.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS,
+                        text -> {
+                            if (!text.trim().isEmpty()) {
+                                ch.name = text.trim();
+                                News.save(app, list);
+                            }
+                            if (resumed) showNews();
+                        }));
+        addInputRow(rows, popup, R.drawable.ic_delete, getString(R.string.delete), -1, () -> {
+            list.remove(index);
+            News.deleteLogo(app, ch);
+            News.save(app, list);
+            Toast.makeText(app, getString(R.string.removed, ch.name), Toast.LENGTH_SHORT).show();
+            showNews();
+        });
+        showNewsPopup(popup, panel);
+        rows.getChildAt(1).requestFocus();
+    }
+
+    private void askForChannel() {
+        Context app = getApplicationContext();
+        askForText(R.string.add_channel_title, getString(R.string.add_channel_message), "",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, text -> {
+            String link = News.normalize(text);
+            if (link == null) {
+                if (!text.trim().isEmpty()) Toast.makeText(app, R.string.not_youtube_link, Toast.LENGTH_LONG).show();
+                return;
+            }
+            Toast.makeText(app, R.string.looking_up, Toast.LENGTH_SHORT).show();
+            News.lookUp(app, link, ch -> {
+                List<News.Channel> list = News.load(app);
+                list.add(ch);
+                News.save(app, list);
+                Toast.makeText(app, getString(R.string.channel_added, ch.name), Toast.LENGTH_SHORT).show();
+                if (resumed) showNews();
+            });
+        });
+    }
+
+    /**
+     * A channel: its streams live right now, to pick from when there are several (one plays straight away). A
+     * video or playlist entry opens as it is.
+     */
+    private void playNews(News.Channel ch) {
+        Context app = getApplicationContext();
+        Toast.makeText(app, getString(R.string.opening, ch.name), Toast.LENGTH_SHORT).show();
+        if (!News.isChannel(ch.url)) {
+            openYouTube(ch.url);
+            return;
+        }
+        News.liveStreams(ch.url, live -> {
+            if (live.size() > 1 && resumed) {
+                showStreams(ch, live);
+            } else if (!live.isEmpty()) {
+                openYouTube(live.get(0).url());
+            } else {
+                // Nothing found on the Live tab: let the channel's live page decide.
+                News.resolve(ch.url, (url, liveNow) -> {
+                    if (!liveNow) Toast.makeText(app, getString(R.string.not_live, ch.name), Toast.LENGTH_LONG).show();
+                    openYouTube(url);
+                });
+            }
+        });
+    }
+
+    private static final int MAX_STREAMS = 10;   // fits the screen height
+
+    /**
+     * A channel with several streams live at once (TV9 Kannada often has 8): pick one, in the middle of the
+     * screen. Most watched first, with the viewer count, and focus starts on it.
+     */
+    private void showStreams(News.Channel ch, List<News.Stream> live) {
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        PopupWindow popup = newsPopup(panel, 640);
+        addHeader(rows, getString(R.string.live_streams, ch.name, live.size()));
+        for (int i = 0; i < Math.min(live.size(), MAX_STREAMS); i++) {
+            News.Stream s = live.get(i);
+            addToolRow(rows, popup, R.drawable.ic_livetv, s.title, s.watching, () -> openYouTube(s.url()));
+        }
+        panel.setAlpha(0f);
+        popup.showAtLocation(root, Gravity.CENTER, 0, 0);
+        panel.animate().alpha(1f).setDuration(200).start();
+        rows.getChildAt(1).requestFocus();
+    }
+
+    /** Opens a youtube.com link in the TV's YouTube app; falls back to its launch screen with the link attached. */
+    private void openYouTube(String url) {
+        Uri uri = Uri.parse(url);
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, uri).setPackage(News.YOUTUBE_PKG)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return;
+        } catch (ActivityNotFoundException ignored) {
+        }
+        Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(News.YOUTUBE_PKG);
+        if (launch == null) launch = getPackageManager().getLaunchIntentForPackage(News.YOUTUBE_PKG);
+        open(launch != null ? launch.setData(uri) : new Intent(Intent.ACTION_VIEW, uri));
+    }
+
+    /**
+     * A one-line text box in a dialog. On Fire TV the on-screen keyboard opens with it, and the Fire TV phone
+     * app's keyboard can type or paste into it.
+     */
+    private void askForText(int title, String message, String initial, int inputType,
+                            java.util.function.Consumer<String> done) {
+        EditText field = new EditText(this);
+        field.setSingleLine(true);
+        field.setInputType(inputType);
+        field.setText(initial);
+        field.setSelection(field.length());
+        field.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        FrameLayout box = new FrameLayout(this);
+        int pad = (int) (20 * density);
+        box.setPadding(pad, 0, pad, 0);
+        box.addView(field);
+        AlertDialog dialog = new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(title)
+                .setMessage(message)
+                .setView(box)
+                .setPositiveButton(R.string.save, (d, w) -> done.accept(field.getText().toString()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        field.setOnEditorActionListener((v, action, e) -> {
+            if (action != EditorInfo.IME_ACTION_DONE) return false;
+            dialog.dismiss();
+            done.accept(field.getText().toString());
+            return true;
+        });
+        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        dialog.show();
+        field.requestFocus();
+    }
+
+    private PopupWindow newsPopup(View panel, int widthDp) {
+        PopupWindow popup = new PopupWindow(panel, (int) (widthDp * density), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));   // needed for Back to dismiss
+        popup.setOutsideTouchable(true);
+        popup.setAnimationStyle(0);
+        popup.setElevation(0f);
+        return popup;
+    }
+
+    /** Hangs the panel under the clock and date, unfolding like the Inputs menu. */
+    private void showNewsPopup(PopupWindow popup, View panel) {
+        panel.setAlpha(0f);
+        panel.setPivotY(0f);
+        panel.setScaleY(0.92f);
+        panel.setTranslationY(-8 * density);
+        popup.showAsDropDown(findViewById(R.id.leftBlock), 0, (int) (14 * density), Gravity.START);
+        panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(220)
+                .setInterpolator(new DecelerateInterpolator(1.6f)).start();
+    }
+
+    /** A small grey line of text in a menu: a heading or a hint. Not focusable. */
+    private TextView addHeader(LinearLayout rows, String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextColor(0x99FFFFFF);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        t.setTypeface(getResources().getFont(R.font.inter));
+        t.setFontVariationSettings("'wght' 600");
+        t.setLetterSpacing(0.04f);
+        t.setSingleLine(true);
+        int h = (int) (12 * density), v = (int) (8 * density);
+        t.setPadding(h, v, h, v);
+        rows.addView(t);
+        return t;
+    }
+
+    private void addToolRow(LinearLayout rows, PopupWindow popup, int iconRes, String title, String status,
+                            Runnable action) {
+        addInputRow(rows, popup, iconRes, title, -1, action);
+        if (status == null) return;
+        TextView st = rows.getChildAt(rows.getChildCount() - 1).findViewById(R.id.status);
+        st.setText(status);
+        st.setVisibility(View.VISIBLE);
     }
 
     /** After the dock changes, focus the app's new tile once the grid has re-laid out. */
@@ -555,8 +951,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // Morning 5-12, afternoon 12-17, evening 17-22, night 22-5. Indexes GREETINGS and BACKGROUNDS.
     private static final int[] GREETINGS = {
             R.string.good_morning, R.string.good_afternoon, R.string.good_evening, R.string.good_night};
-    private static final int[] BACKGROUNDS = {
-            R.drawable.bg_morning, R.drawable.bg_afternoon, R.drawable.bg_evening, R.drawable.bg_night};
 
     private static int dayPart() {
         int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
@@ -573,20 +967,165 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         greeting.setText(name.isEmpty() ? text : text + ", " + name);
     }
 
+    // ---- wallpapers -----------------------------------------------------------------------------
+    // A rotation, one picture every WALL_ROTATE_MS, with its name under the top-right buttons. The built-in photo
+    // comes first (bg_morning 5:00-17:00, bg_night otherwise; named by builtin_caption_day/_night), then any JPEG, PNG or WebP
+    // in this app's media folder, /sdcard/Android/media/com.gathin.tvhome/wallpapers (adb push, no permission
+    // needed). Names come from captions.txt there ("<file><TAB><name>" per line), else from the file name.
+
+    private static final long WALL_ROTATE_MS = 30 * 60_000L;
+    private static final String BUILT_IN = "builtin";
+
+    /** The rotation: BUILT_IN, then the folder's pictures in name order. Re-read every time, it is a few files. */
+    private List<String> wallpapers() {
+        List<String> list = new ArrayList<>();
+        list.add(BUILT_IN);
+        File dir = wallpaperDir();
+        File[] files = dir != null ? dir.listFiles() : null;
+        if (files != null) {
+            List<String> pics = new ArrayList<>();
+            for (File f : files) {
+                String n = f.getName().toLowerCase(java.util.Locale.ROOT);
+                if (f.isFile() && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))) {
+                    pics.add(f.getAbsolutePath());
+                }
+            }
+            Collections.sort(pics);
+            list.addAll(pics);
+        }
+        return list;
+    }
+
+    private File wallpaperDir() {
+        File[] media = getExternalMediaDirs();
+        if (media == null || media.length == 0 || media[0] == null) return null;
+        File dir = new File(media[0], "wallpapers");
+        if (!dir.isDirectory()) dir.mkdirs();
+        return dir;
+    }
+
+    /** The picture due now: moves on one step once WALL_ROTATE_MS has passed since the last step. */
+    private String currentWallpaper() {
+        List<String> list = wallpapers();
+        android.content.SharedPreferences prefs = getSharedPreferences("wallpaper", MODE_PRIVATE);
+        String shown = prefs.getString("path", BUILT_IN);
+        long since = prefs.getLong("since", 0);
+        int index = Math.max(0, list.indexOf(shown));
+        long now = System.currentTimeMillis();
+        if (list.size() > 1 && now - since >= WALL_ROTATE_MS) {
+            index = since == 0 ? index : (index + 1) % list.size();
+            prefs.edit().putString("path", list.get(index)).putLong("since", now).apply();
+        }
+        return list.get(index);
+    }
+
+    private String wallpaperCaption(String path) {
+        if (BUILT_IN.equals(path)) return getString(isDaytime() ? R.string.builtin_caption_day : R.string.builtin_caption_night);
+        File f = new File(path);
+        File captions = new File(f.getParentFile(), "captions.txt");
+        if (captions.isFile()) {
+            try (java.io.BufferedReader in = new java.io.BufferedReader(new java.io.FileReader(captions))) {
+                for (String line; (line = in.readLine()) != null; ) {
+                    int tab = line.indexOf('\t');
+                    if (tab > 0 && line.substring(0, tab).trim().equals(f.getName())) return line.substring(tab + 1).trim();
+                }
+            } catch (java.io.IOException ignored) {
+            }
+        }
+        // "02-coastal_train.jpg" -> "Coastal train"
+        String name = f.getName().replaceFirst("\\.[^.]+$", "").replaceFirst("^[0-9]+[-_ ]*", "").replace('_', ' ').replace('-', ' ').trim();
+        return name.isEmpty() ? "" : Character.toUpperCase(name.charAt(0)) + name.substring(1);
+    }
+
+    private static boolean isDaytime() {
+        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        return hour >= 5 && hour < 17;
+    }
+
     private void updateBackground() {
-        int res = BACKGROUNDS[dayPart()];
-        if (res == bgRes) return;
-        boolean first = bgRes == 0;
-        bgRes = res;
+        String path = currentWallpaper();
+        String key = BUILT_IN.equals(path) ? "res:" + (isDaytime() ? R.drawable.bg_morning : R.drawable.bg_night) : path;
+        if (key.equals(bgKey)) return;
+        android.graphics.Bitmap photo = loadWallpaper(key);
+        if (photo == null && !BUILT_IN.equals(path)) {   // unreadable file: fall back to the built-in photo
+            key = "res:" + (isDaytime() ? R.drawable.bg_morning : R.drawable.bg_night);
+            path = BUILT_IN;
+            if (key.equals(bgKey)) return;
+            photo = loadWallpaper(key);
+        }
+        if (photo == null) return;
+        boolean first = bgKey == null;
+        bgKey = key;
+        final android.graphics.Bitmap pic = photo;
+        final String caption = wallpaperCaption(path);
         if (first) {
-            bgPhoto.setImageResource(res);
+            bgPhoto.setImageBitmap(pic);
+            setFrost(frostedBand(pic), false);
+            wallCaption.setText(caption);
             return;
         }
         // Fade through black so the swap isn't a jump cut.
         bgPhoto.animate().alpha(0f).setDuration(600).withEndAction(() -> {
-            bgPhoto.setImageResource(res);
+            bgPhoto.setImageBitmap(pic);
+            setFrost(frostedBand(pic), true);
+            wallCaption.setText(caption);
             bgPhoto.animate().alpha(1f).setDuration(900);
         });
+    }
+
+    private android.animation.ValueAnimator frostFade;
+
+    /** Puts the blurred photo behind the dock shelf only (the photo stays sharp elsewhere); fades it in on a swap. */
+    private void setFrost(android.graphics.Bitmap blurred, boolean fade) {
+        if (frostFade != null) frostFade.cancel();
+        dockDecoration.setFrost(blurred);
+        dockDecoration.setFrostAlpha(fade ? 0 : 255);
+        grid.invalidate();
+        if (!fade || blurred == null) return;
+        frostFade = android.animation.ValueAnimator.ofInt(0, 255).setDuration(900);
+        frostFade.addUpdateListener(a -> {
+            dockDecoration.setFrostAlpha((int) a.getAnimatedValue());
+            grid.invalidate();
+        });
+        frostFade.start();
+    }
+
+    /** Decodes "res:<id>" or a file, scaled down to about the screen's size so a large photo costs no more memory. */
+    private android.graphics.Bitmap loadWallpaper(String key) {
+        int screenW = Math.max(1, getResources().getDisplayMetrics().widthPixels);
+        android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        boolean res = key.startsWith("res:");
+        int id = res ? Integer.parseInt(key.substring(4)) : 0;
+        if (res) android.graphics.BitmapFactory.decodeResource(getResources(), id, o);
+        else android.graphics.BitmapFactory.decodeFile(key, o);
+        if (o.outWidth <= 0) return null;
+        o.inJustDecodeBounds = false;
+        o.inSampleSize = 1;
+        while (o.outWidth / (o.inSampleSize * 2) >= screenW) o.inSampleSize *= 2;
+        return res ? android.graphics.BitmapFactory.decodeResource(getResources(), id, o)
+                : android.graphics.BitmapFactory.decodeFile(key, o);
+    }
+
+    /**
+     * The photo, blurred (shrunk to 1/16 and smoothly scaled back up) and darkened, for the dock shelf: only the
+     * shelf shows it (DockDecoration), the rest of the photo stays sharp. About 0.5 MB.
+     */
+    private android.graphics.Bitmap frostedBand(android.graphics.Bitmap src) {
+        if (src == null) return null;
+        int w = 480, h = Math.round(w * src.getHeight() / (float) src.getWidth());
+        // Shrink in steps, then grow back in steps: a soft blur without blocky edges.
+        android.graphics.Bitmap a = android.graphics.Bitmap.createScaledBitmap(src, w / 2, h / 2, true);
+        android.graphics.Bitmap small = android.graphics.Bitmap.createScaledBitmap(a, w / 10, Math.max(1, h / 10), true);
+        a.recycle();
+        android.graphics.Bitmap mid = android.graphics.Bitmap.createScaledBitmap(small, w / 4, h / 4, true);
+        small.recycle();
+        android.graphics.Bitmap band = android.graphics.Bitmap.createScaledBitmap(mid, w, h, true)
+                .copy(android.graphics.Bitmap.Config.ARGB_8888, true);
+        mid.recycle();
+        android.graphics.Canvas c = new android.graphics.Canvas(band);
+        c.drawColor(0x8C060810);   // darken
+        return band;
     }
 
     /** Shows the Wi-Fi network name on the button when we can read it, otherwise the connection type. */

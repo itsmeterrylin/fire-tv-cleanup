@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Trending: the focused title's name, details and story at the top, rows of posters below, TMDB credit bottom right. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF0B0B10">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="56dp"
+        android:paddingEnd="56dp"
+        android:paddingTop="26dp"
+        android:paddingBottom="34dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/trending_heading"
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp"
+            android:letterSpacing="0.12"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 600" />
+
+        <TextView
+            android:id="@+id/heroTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#FFFFFFFF"
+            android:textSize="28sp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 700"
+            android:letterSpacing="-0.01" />
+
+        <TextView
+            android:id="@+id/heroMeta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#B3FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/inter"
+            android:fontVariationSettings="'wght' 500" />
+
+        <!-- Where it streams in India: service logos and names, filled in code once the title's details load. -->
+        <LinearLayout
+            android:id="@+id/heroWhere"
+            android:layout_width="wrap_content"
+            android:layout_height="26dp"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical" />
+
+        <TextView
+            android:id="@+id/heroOverview"
+            android:layout_width="640dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:minLines="3"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:lineSpacingMultiplier="1.15"
+            android:textColor="#CCFFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/inter" />
+
+        <ScrollView
+            android:id="@+id/scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="10dp"
+            android:scrollbars="none"
+            android:overScrollMode="never"
+            android:requiresFadingEdge="vertical"
+            android:fadingEdgeLength="20dp">
+
+            <LinearLayout
+                android:id="@+id/rows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:clipChildren="false"
+                android:clipToPadding="false" />
+        </ScrollView>
+    </LinearLayout>
+
+    <!-- Credit TMDB's terms ask for: their logo and a not-endorsed notice; JustWatch for the streaming data. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="56dp"
+        android:layout_marginBottom="12dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="11dp"
+            android:adjustViewBounds="true"
+            android:src="@drawable/tmdb_logo"
+            android:contentDescription="TMDB" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/tmdb_notice"
+            android:textColor="#80FFFFFF"
+            android:textSize="10sp"
+            android:fontFamily="@font/inter" />
+    </LinearLayout>
+</FrameLayout>
